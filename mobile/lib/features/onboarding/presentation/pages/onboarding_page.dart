@@ -26,6 +26,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
   final List<OnboardingPageModel> _pages = OnboardingPageModel.getPages();
 
   @override
+  void initState() {
+    super.initState();
+    context.read<OnboardingBloc>().add(CheckOnboardingStatusEvent());
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
     super.dispose();
@@ -56,6 +62,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
       listener: (context, state) {
         if (state is OnboardingCompleted) {
           // Navegar para seleção de tipo de usuário
+          context.go('/user-type-selection');
+        } else if (state is OnboardingAlreadyCompleted) {
           context.go('/user-type-selection');
         }
       },

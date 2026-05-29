@@ -1,6 +1,8 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'firebase_options.dart';
 import 'core/routes/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/onboarding/data/datasources/onboarding_local_datasource.dart';
@@ -18,6 +20,10 @@ void main() async {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+
+  await Firebase.initializeApp(
+  options: DefaultFirebaseOptions.currentPlatform,
+  );
 
   runApp(const ConvivaApp());
 }
