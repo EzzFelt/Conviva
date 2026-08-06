@@ -1,0 +1,76 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/auth/models/auth_arguments.dart';
+import '../../features/auth/pages/login_page.dart';
+import '../../features/auth/pages/register_page.dart';
+
+import '../../features/onboarding/models/onboarding_arguments.dart';
+import '../../features/onboarding/pages/onboarding_page.dart';
+import '../../features/onboarding/pages/splash_page.dart';
+
+import 'route_names.dart';
+
+class AppRouter {
+  AppRouter._();
+
+  static final router = GoRouter(
+    initialLocation: RouteNames.splash,
+
+    routes: [
+      GoRoute(
+        path: RouteNames.splash,
+        builder: (context, state) => const SplashPage(),
+      ),
+
+      GoRoute(
+        path: RouteNames.onboarding,
+        pageBuilder: (context, state) {
+          final arguments =
+              state.extra as OnboardingArguments? ??
+                  const OnboardingArguments();
+
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: OnboardingPage(
+              arguments: arguments,
+            ),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return FadeTransition(
+                opacity: animation,
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.register,
+        builder: (context, state) {
+          final arguments = state.extra as AuthArguments;
+
+          return RegisterPage(
+            arguments: arguments,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.login,
+        builder: (context, state) {
+          final arguments = state.extra as AuthArguments;
+
+          return LoginPage(
+            arguments: arguments,
+          );
+        },
+      ),
+    ],
+  );
+}
