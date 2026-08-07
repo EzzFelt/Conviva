@@ -27,3 +27,51 @@ class AppColors {
 
   static const disabled = Color(0xFFBDBDBD);
 }
+
+/// Cores que podem variar de acordo com a preferência do usuário.
+@immutable
+class AppGradientColors extends ThemeExtension<AppGradientColors> {
+  const AppGradientColors({
+    required this.top,
+    required this.bottom,
+  });
+
+  static const standard = AppGradientColors(
+    top: AppColors.gradientTop,
+    bottom: AppColors.gradientBottom,
+  );
+
+  final Color top;
+  final Color bottom;
+
+  @override
+  AppGradientColors copyWith({
+    Color? top,
+    Color? bottom,
+  }) {
+    return AppGradientColors(
+      top: top ?? this.top,
+      bottom: bottom ?? this.bottom,
+    );
+  }
+
+  @override
+  AppGradientColors lerp(
+    covariant AppGradientColors? other,
+    double t,
+  ) {
+    if (other == null) return this;
+
+    return AppGradientColors(
+      top: Color.lerp(top, other.top, t)!,
+      bottom: Color.lerp(bottom, other.bottom, t)!,
+    );
+  }
+}
+
+extension AppGradientColorsContext on BuildContext {
+  AppGradientColors get appGradientColors {
+    return Theme.of(this).extension<AppGradientColors>() ??
+        AppGradientColors.standard;
+  }
+}

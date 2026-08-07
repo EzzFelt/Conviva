@@ -1,32 +1,49 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_sizes.dart';
 
 class GotoButtonWidget extends StatelessWidget {
-  final VoidCallback? onPressed;
-
   const GotoButtonWidget({
     super.key,
     this.onPressed,
+    this.semanticLabel = 'Avançar',
   });
+
+  final VoidCallback? onPressed;
+  final String semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(100),
-      onTap: onPressed,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: const BoxDecoration(
-          color: AppColors.primary,
-          shape: BoxShape.circle,
+    final colorScheme = Theme.of(context).colorScheme;
+    final sizes = context.appSizes;
+
+    final content = Material(
+      color: colorScheme.primary,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onPressed,
+        child: SizedBox.square(
+          dimension: sizes.buttonSmall,
+          child: Icon(
+            Icons.arrow_forward_ios,
+            size: sizes.md,
+            color: colorScheme.onPrimary,
+          ),
         ),
-        child: const Icon(
-          Icons.arrow_forward_ios,
-          size: 16,
-          color: Colors.white,
-        ),
+      ),
+    );
+
+    if (onPressed == null) {
+      return ExcludeSemantics(child: content);
+    }
+
+    return Tooltip(
+      message: semanticLabel,
+      child: Semantics(
+        button: true,
+        label: semanticLabel,
+        child: content,
       ),
     );
   }

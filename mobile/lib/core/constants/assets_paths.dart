@@ -8,8 +8,8 @@ class AssetPaths {
 
   // Avatares
   static const elderAvatar = 'assets/images/onboarding/idoso_acc.png';
-  static const caregiverAvatar = 'assets/images/onboarding/familia_acc.png';
-  static const familyAvatar = 'assets/images/onboarding/cuidador_acc.png';
+  static const caregiverAvatar = 'assets/images/onboarding/cuidador_acc.png';
+  static const familyAvatar = 'assets/images/onboarding/familia_acc.png';
 
   // Logo
   static const logo = 'assets/images/logo/logo.png';

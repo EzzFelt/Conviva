@@ -1,23 +1,18 @@
 import 'package:flutter/material.dart';
 
 class AuthHeaderWidget extends StatelessWidget {
-  final String title;
-
   const AuthHeaderWidget({
     super.key,
     required this.title,
   });
 
+  final String title;
+
   @override
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: const TextStyle(
-        fontSize: 32,
-        fontWeight: FontWeight.w700,
-        color: Color(0xFF212121),
-        height: 1.25,
-      ),
+      style: Theme.of(context).textTheme.headlineLarge,
     );
   }
 }

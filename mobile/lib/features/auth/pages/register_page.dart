@@ -32,6 +32,7 @@ class RegisterPage extends StatefulWidget {
 }
 
 class _RegisterPageState extends State<RegisterPage> {
+  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _institutionController = TextEditingController();
@@ -47,98 +48,162 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   void _register() {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
     // TODO Firebase
+  }
+
+  String? _validateRequired(String? value, String message) {
+    if (value == null || value.trim().isEmpty) {
+      return message;
+    }
+
+    return null;
+  }
+
+  String? _validatePhone(String? value) {
+    final phone = value?.replaceAll(RegExp(r'\D'), '') ?? '';
+
+    if (phone.isEmpty) {
+      return 'Informe o número de telefone';
+    }
+
+    if (phone.length < 10) {
+      return 'Informe um número de telefone válido';
+    }
+
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final accountType = widget.arguments.accountType;
+    final colorScheme = Theme.of(context).colorScheme;
+    final sizes = context.appSizes;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSizes.lg,
-            vertical: AppSizes.lg,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              BackButtonWidget(
-                onPressed: () {
-                  context.go(
-                    RouteNames.onboarding,
-                    extra: const OnboardingArguments(
-                      initialPage: OnboardingPages.accountType,
-                      authMode: AuthMode.register,
+        child: Form(
+          key: _formKey,
+          child: AutofillGroup(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: sizes.lg,
+                vertical: sizes.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  BackButtonWidget(
+                    onPressed: () {
+                      context.go(
+                        RouteNames.onboarding,
+                        extra: const OnboardingArguments(
+                          initialPage: OnboardingPages.accountType,
+                          authMode: AuthMode.register,
+                        ),
+                      );
+                    },
+                  ),
+
+                  SizedBox(height: sizes.xl),
+
+                  const AuthHeaderWidget(
+                    title: 'Faça seu\ncadastro aqui!',
+                  ),
+
+                  SizedBox(height: sizes.xl),
+
+                  TextFieldWidget(
+                    controller: _nameController,
+                    hintText: 'Nome completo',
+                    keyboardType: TextInputType.name,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) => _validateRequired(
+                      value,
+                      'Informe o nome completo',
                     ),
-                  );
-                },
-              ),
+                    autofillHints: const [AutofillHints.name],
+                  ),
 
-              const SizedBox(height: AppSizes.xl),
+                  SizedBox(height: sizes.md),
 
-              const AuthHeaderWidget(
-                title: 'Faça seu\ncadastro aqui!',
-              ),
+                  TextFieldWidget(
+                    controller: _phoneController,
+                    hintText: 'Número de telefone',
+                    keyboardType: TextInputType.phone,
+                    textInputAction: accountType.hasPassword ||
+                            accountType.hasInstitution
+                        ? TextInputAction.next
+                        : TextInputAction.done,
+                    validator: _validatePhone,
+                    onFieldSubmitted:
+                        accountType.hasPassword || accountType.hasInstitution
+                            ? null
+                            : (_) => _register(),
+                    autofillHints: const [AutofillHints.telephoneNumber],
+                  ),
 
-              const SizedBox(height: AppSizes.xl),
+                  if (accountType.hasInstitution) ...[
+                    SizedBox(height: sizes.md),
 
-              TextFieldWidget(
-                controller: _nameController,
-                hintText: 'Nome completo',
-              ),
-
-              const SizedBox(height: AppSizes.md),
-
-              TextFieldWidget(
-                controller: _phoneController,
-                hintText: 'Número de telefone',
-                keyboardType: TextInputType.phone,
-              ),
-
-              if (accountType.hasInstitution) ...[
-                const SizedBox(height: AppSizes.md),
-
-                TextFieldWidget(
-                  controller: _institutionController,
-                  hintText: 'Instituição (Código)',
-                ),
-              ],
-
-              if (accountType.hasPassword) ...[
-                const SizedBox(height: AppSizes.md),
-
-                PasswordTextFieldWidget(
-                  controller: _passwordController,
-                ),
-              ],
-
-              const SizedBox(height: AppSizes.xl),
-
-              ButtonWidget(
-                label: 'Cadastrar',
-                variant: ButtonVariant.orange,
-                onPressed: _register,
-              ),
-
-              const SizedBox(height: AppSizes.lg),
-
-              AuthFooterWidget(
-                text: 'Já possui conta?',
-                actionText: 'Entrar',
-                onTap: () {
-                  context.go(
-                    RouteNames.login,
-                    extra: AuthArguments(
-                      accountType: accountType,
-                      authMode: AuthMode.login,
+                    TextFieldWidget(
+                      controller: _institutionController,
+                      hintText: 'Instituição (Código)',
+                      textInputAction: TextInputAction.next,
+                      validator: (value) => _validateRequired(
+                        value,
+                        'Informe o código da instituição',
+                      ),
                     ),
-                  );
-                },
+                  ],
+
+                  if (accountType.hasPassword) ...[
+                    SizedBox(height: sizes.md),
+
+                    PasswordTextFieldWidget(
+                      controller: _passwordController,
+                      textInputAction: TextInputAction.done,
+                      validator: (value) => _validateRequired(
+                        value,
+                        'Informe a senha',
+                      ),
+                      onFieldSubmitted: (_) => _register(),
+                      autofillHints: const [AutofillHints.newPassword],
+                    ),
+                  ],
+
+                  SizedBox(height: sizes.xl),
+
+                  ButtonWidget(
+                    label: 'Cadastrar',
+                    variant: ButtonVariant.primary,
+                    onPressed: _register,
+                  ),
+
+                  SizedBox(height: sizes.lg),
+
+                  AuthFooterWidget(
+                    text: 'Já possui conta?',
+                    actionText: 'Entrar',
+                    onTap: () {
+                      context.go(
+                        RouteNames.login,
+                        extra: AuthArguments(
+                          accountType: accountType,
+                          authMode: AuthMode.login,
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
