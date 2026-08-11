@@ -17,6 +17,13 @@ class AppTextStyles {
     height: 1.30,
   );
 
+  static const actionCardTitle = TextStyle(
+    fontFamily: 'BeVietnamPro',
+    fontSize: 18,
+    fontWeight: FontWeight.w800,
+    height: 1.25,
+  );
+
   static const body = TextStyle(
     fontFamily: 'Inter',
     fontSize: 15,
@@ -47,9 +54,8 @@ class AppTextStyles {
 
   static TextTheme textTheme(Color textColor) {
     return TextTheme(
-      // Alias temporário: AuthHeaderWidget ainda usa displaySmall.
-      displaySmall: pageTitle.copyWith(color: textColor),
       headlineLarge: pageTitle.copyWith(color: textColor),
+      headlineSmall: actionCardTitle.copyWith(color: textColor),
       titleLarge: sectionTitle.copyWith(color: textColor),
       titleMedium: bodyEmphasis.copyWith(color: textColor),
       bodyLarge: body.copyWith(color: textColor),

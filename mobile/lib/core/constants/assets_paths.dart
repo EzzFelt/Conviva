@@ -6,11 +6,14 @@ class AssetPaths {
   static const onboarding2 = 'assets/images/onboarding/onb2.png';
   static const onboarding3 = 'assets/images/onboarding/onb3.png';
 
-  // Avatares
+  // Tipos de conta onboarding
   static const elderAvatar = 'assets/images/onboarding/idoso_acc.png';
   static const caregiverAvatar = 'assets/images/onboarding/cuidador_acc.png';
   static const familyAvatar = 'assets/images/onboarding/familia_acc.png';
 
   // Logo
   static const logo = 'assets/images/logo/logo.png';
+
+  // Auri
+  static const auri = 'assets/images/auri/auri.png';
 }
