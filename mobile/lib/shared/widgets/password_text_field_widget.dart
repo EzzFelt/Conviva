@@ -1,14 +1,26 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_sizes.dart';
 
 class PasswordTextFieldWidget extends StatefulWidget {
-  final TextEditingController controller;
-
   const PasswordTextFieldWidget({
     super.key,
     required this.controller,
+    this.hintText = 'Senha',
+    this.textInputAction,
+    this.focusNode,
+    this.validator,
+    this.onFieldSubmitted,
+    this.autofillHints = const [AutofillHints.password],
   });
+
+  final TextEditingController controller;
+  final String hintText;
+  final TextInputAction? textInputAction;
+  final FocusNode? focusNode;
+  final FormFieldValidator<String>? validator;
+  final ValueChanged<String>? onFieldSubmitted;
+  final Iterable<String>? autofillHints;
 
   @override
   State<PasswordTextFieldWidget> createState() =>
@@ -21,42 +33,47 @@ class _PasswordTextFieldWidgetState
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+
+    OutlineInputBorder border(Color color, {double width = 1}) {
+      return OutlineInputBorder(
+        borderRadius: BorderRadius.circular(sizes.radiusFull),
+        borderSide: BorderSide(color: color, width: width),
+      );
+    }
+
+    return TextFormField(
       controller: widget.controller,
+      focusNode: widget.focusNode,
+      textInputAction: widget.textInputAction,
+      validator: widget.validator,
+      onFieldSubmitted: widget.onFieldSubmitted,
+      autofillHints: widget.autofillHints,
+      keyboardType: TextInputType.visiblePassword,
       obscureText: _obscureText,
-      cursorColor: AppColors.primary,
+      enableSuggestions: false,
+      autocorrect: false,
+      cursorColor: colorScheme.primary,
+      style: theme.textTheme.bodyLarge,
       decoration: InputDecoration(
-        hintText: 'Senha',
-        hintStyle: const TextStyle(
-          color: AppColors.textHint,
-          fontSize: 15,
+        hintText: widget.hintText,
+        hintStyle: theme.textTheme.bodyLarge?.copyWith(
+          color: colorScheme.onSurfaceVariant,
         ),
-
         filled: true,
-        fillColor: Colors.white,
-
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 18,
+        fillColor: colorScheme.surface,
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: sizes.md,
+          vertical: sizes.md,
         ),
-
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(45),
-          borderSide: const BorderSide(
-            color: AppColors.border,
-          ),
-        ),
-
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(45),
-          borderSide: const BorderSide(
-            color: AppColors.primary,
-            width: 1.5,
-          ),
-        ),
-
+        enabledBorder: border(colorScheme.outline),
+        focusedBorder: border(colorScheme.primary, width: 1.5),
+        errorBorder: border(colorScheme.error),
+        focusedErrorBorder: border(colorScheme.error, width: 1.5),
         suffixIcon: IconButton(
-          splashRadius: 20,
+          tooltip: _obscureText ? 'Mostrar senha' : 'Ocultar senha',
           onPressed: () {
             setState(() {
               _obscureText = !_obscureText;
@@ -66,7 +83,7 @@ class _PasswordTextFieldWidgetState
             _obscureText
                 ? Icons.visibility_off_outlined
                 : Icons.visibility_outlined,
-            color: AppColors.textHint,
+            color: colorScheme.onSurfaceVariant,
           ),
         ),
       ),

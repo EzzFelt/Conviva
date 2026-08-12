@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/routes/app_router.dart';
+import 'core/themes/app_theme.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -10,6 +11,7 @@ class App extends StatelessWidget {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'Conviva',
+      theme: AppTheme.light,
       routerConfig: AppRouter.router,
     );
   }

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/assets_paths.dart';
 import '../../../core/routes/route_names.dart';
 
@@ -15,11 +15,13 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> {
+  late final Timer _navigationTimer;
+
   @override
   void initState() {
     super.initState();
 
-    Timer(
+    _navigationTimer = Timer(
       const Duration(seconds: 2),
       () {
         if (!mounted) return;
@@ -30,15 +32,27 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   @override
+  void dispose() {
+    _navigationTimer.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: AppColors.white,
+    final colorScheme = Theme.of(context).colorScheme;
+    final sizes = context.appSizes;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
       body: Center(
-        child: Image(
-          image: AssetImage(
+        child: Semantics(
+          image: true,
+          label: 'Conviva',
+          child: Image.asset(
             AssetPaths.logo,
+            width: sizes.xxl * 3.75,
+            excludeFromSemantics: true,
           ),
-          width: 180,
         ),
       ),
     );

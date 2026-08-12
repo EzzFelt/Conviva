@@ -1,14 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_sizes.dart';
 import 'goto_button_widget.dart';
 
 class BorderCardWidget extends StatelessWidget {
-  final Widget leading;
-  final String title;
-  final String description;
-  final VoidCallback? onTap;
-
   const BorderCardWidget({
     super.key,
     required this.leading,
@@ -17,69 +12,68 @@ class BorderCardWidget extends StatelessWidget {
     this.onTap,
   });
 
+  final Widget leading;
+  final String title;
+  final String description;
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.card,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: AppColors.border,
-          ),
-        ),
-        child: Stack(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                leading,
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+    final borderRadius = BorderRadius.circular(sizes.radiusLg);
 
-                const SizedBox(width: 16),
-
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 52),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textPrimary,
+    return Material(
+      color: colorScheme.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: borderRadius,
+        side: BorderSide(color: colorScheme.outline),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.all(sizes.md),
+          child: Stack(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  leading,
+                  SizedBox(width: sizes.md),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: sizes.buttonSmall + sizes.sm,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: theme.textTheme.titleMedium,
                           ),
-                        ),
-
-                        const SizedBox(height: 6),
-
-                        Text(
-                          description,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textHint,
-                            height: 1.4,
+                          SizedBox(height: sizes.sm),
+                          Text(
+                            description,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: GotoButtonWidget(
-                onPressed: onTap,
+                ],
               ),
-            ),
-          ],
+              const Positioned(
+                right: 0,
+                bottom: 0,
+                child: GotoButtonWidget(),
+              ),
+            ],
+          ),
         ),
       ),
     );

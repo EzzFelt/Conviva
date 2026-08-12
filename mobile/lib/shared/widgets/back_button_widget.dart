@@ -1,34 +1,42 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_sizes.dart';
 
 class BackButtonWidget extends StatelessWidget {
-  final VoidCallback onPressed;
-
   const BackButtonWidget({
     super.key,
     required this.onPressed,
   });
 
+  final VoidCallback onPressed;
+
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(100),
-      onTap: onPressed,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-            color: AppColors.border,
+    final colorScheme = Theme.of(context).colorScheme;
+    final sizes = context.appSizes;
+
+    return Tooltip(
+      message: 'Voltar',
+      child: Semantics(
+        button: true,
+        label: 'Voltar',
+        child: Material(
+          color: colorScheme.surface,
+          shape: CircleBorder(
+            side: BorderSide(color: colorScheme.outline),
           ),
-        ),
-        child: const Icon(
-          Icons.arrow_back_ios_new,
-          size: 18,
-          color: AppColors.textPrimary,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: SizedBox.square(
+              dimension: sizes.buttonSmall,
+              child: Icon(
+                Icons.arrow_back_ios_new,
+                size: sizes.md,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ),
         ),
       ),
     );

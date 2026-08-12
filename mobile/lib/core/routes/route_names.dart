@@ -7,6 +7,5 @@ class RouteNames {
   static const register = '/register';
   static const login = '/login';
 
-  // Home (vamos implementar depois)
-  static const home = '/home';
+  static const elderHome = '/home/elder';
 }

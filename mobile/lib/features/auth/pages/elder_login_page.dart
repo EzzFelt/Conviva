@@ -114,7 +114,7 @@ class _ElderLoginPageState extends State<ElderLoginPage> {
 
               ButtonWidget(
                 label: 'Entrar',
-                variant: ButtonVariant.orange,
+                variant: ButtonVariant.primary,
                 onPressed: _login,
               ),
 

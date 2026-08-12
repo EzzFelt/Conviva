@@ -7,6 +7,8 @@ import '../../features/auth/pages/elder_login_page.dart';
 import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
 
+import '../../features/home/elder/elder_home_page.dart';
+
 import '../../features/onboarding/models/onboarding_arguments.dart';
 import '../../features/onboarding/pages/onboarding_page.dart';
 import '../../features/onboarding/pages/splash_page.dart';
@@ -17,7 +19,7 @@ class AppRouter {
   AppRouter._();
 
   static final router = GoRouter(
-    initialLocation: RouteNames.splash,
+    initialLocation: RouteNames.elderHome,
 
     routes: [
       GoRoute(
@@ -78,6 +80,11 @@ class AppRouter {
             arguments: arguments,
           );
         },
+      ),
+
+      GoRoute(
+        path: RouteNames.elderHome,
+        builder: (context, state) => const ElderHomePage(),
       ),
     ],
   );

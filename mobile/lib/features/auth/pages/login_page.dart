@@ -32,95 +32,141 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _emailController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
   void _login() {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+
     // TODO: Firebase + Provider
+  }
+
+  String? _validatePhone(String? value) {
+    final phone = value?.replaceAll(RegExp(r'\D'), '') ?? '';
+
+    if (phone.isEmpty) {
+      return 'Informe o número de telefone';
+    }
+
+    if (phone.length < 10) {
+      return 'Informe um número de telefone válido';
+    }
+
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Informe a senha';
+    }
+
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final accountType = widget.arguments.accountType;
+    final colorScheme = Theme.of(context).colorScheme;
+    final sizes = context.appSizes;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSizes.lg,
-            vertical: AppSizes.lg,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              BackButtonWidget(
-                onPressed: () {
-                  context.go(
-                    RouteNames.onboarding,
-                    extra: const OnboardingArguments(
-                      initialPage: OnboardingPages.accountType,
-                      authMode: AuthMode.login,
+        child: Form(
+          key: _formKey,
+          child: AutofillGroup(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(
+                horizontal: sizes.lg,
+                vertical: sizes.lg,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  BackButtonWidget(
+                    onPressed: () {
+                      context.go(
+                        RouteNames.onboarding,
+                        extra: const OnboardingArguments(
+                          initialPage: OnboardingPages.accountType,
+                          authMode: AuthMode.login,
+                        ),
+                      );
+                    },
+                  ),
+
+                  SizedBox(height: sizes.xl),
+
+                  const AuthHeaderWidget(
+                    title: 'Entre na\nsua conta!',
+                  ),
+
+                  SizedBox(height: sizes.xl),
+
+                  TextFieldWidget(
+                    controller: _phoneController,
+                    hintText: 'Número de telefone',
+                    keyboardType: TextInputType.phone,
+                    textInputAction: accountType.hasPassword
+                        ? TextInputAction.next
+                        : TextInputAction.done,
+                    validator: _validatePhone,
+                    onFieldSubmitted:
+                        accountType.hasPassword ? null : (_) => _login(),
+                    autofillHints: const [AutofillHints.telephoneNumber],
+                  ),
+
+                  if (accountType.hasPassword) ...[
+                    SizedBox(height: sizes.md),
+
+                    PasswordTextFieldWidget(
+                      controller: _passwordController,
+                      textInputAction: TextInputAction.done,
+                      validator: _validatePassword,
+                      onFieldSubmitted: (_) => _login(),
                     ),
-                  );
-                },
+                  ],
+
+                  SizedBox(height: sizes.xl),
+
+                  ButtonWidget(
+                    label: accountType.hasPassword
+                        ? 'Entrar'
+                        : 'Receber código',
+                    variant: ButtonVariant.primary,
+                    onPressed: _login,
+                  ),
+
+                  SizedBox(height: sizes.lg),
+
+                  AuthFooterWidget(
+                    text: 'Ainda não possui conta?',
+                    actionText: 'Cadastre-se',
+                    onTap: () {
+                      context.go(
+                        RouteNames.register,
+                        extra: AuthArguments(
+                          accountType: accountType,
+                          authMode: AuthMode.register,
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-
-              const SizedBox(height: AppSizes.xl),
-
-              const AuthHeaderWidget(
-                title: 'Entre na\nsua conta!',
-              ),
-
-              const SizedBox(height: AppSizes.xl),
-
-              TextFieldWidget(
-                controller: _emailController,
-                hintText: 'E-mail',
-                keyboardType: TextInputType.emailAddress,
-              ),
-
-              if (accountType.hasPassword) ...[
-                const SizedBox(height: AppSizes.md),
-
-                PasswordTextFieldWidget(
-                  controller: _passwordController,
-                ),
-              ],
-
-              const SizedBox(height: AppSizes.xl),
-
-              ButtonWidget(
-                label: accountType.hasPassword
-                    ? 'Entrar'
-                    : 'Receber código',
-                variant: ButtonVariant.orange,
-                onPressed: _login,
-              ),
-
-              const SizedBox(height: AppSizes.lg),
-
-              AuthFooterWidget(
-                text: 'Ainda não possui conta?',
-                actionText: 'Cadastre-se',
-                onTap: () {
-                  context.go(
-                    RouteNames.register,
-                    extra: AuthArguments(
-                      accountType: accountType,
-                      authMode: AuthMode.register,
-                    ),
-                  );
-                },
-              ),
-            ],
+            ),
           ),
         ),
       ),

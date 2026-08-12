@@ -1,70 +1,79 @@
 import 'package:flutter/material.dart';
 
-import '../../core/constants/app_colors.dart';
+import '../../core/constants/app_sizes.dart';
 
 enum ButtonVariant {
-  orange,
-  white,
+  primary,
+  surface,
 }
 
 enum ButtonSize {
   small,
   medium,
-  big,
+  large,
 }
 
 class ButtonWidget extends StatelessWidget {
+  const ButtonWidget({
+    super.key,
+    this.label = 'Continuar',
+    required this.onPressed,
+    this.variant = ButtonVariant.primary,
+    this.size = ButtonSize.medium,
+  });
+
   final String label;
   final VoidCallback? onPressed;
   final ButtonVariant variant;
   final ButtonSize size;
 
-  const ButtonWidget({
-    super.key,
-    this.label = 'Continuar',
-    required this.onPressed,
-    this.variant = ButtonVariant.orange,
-    this.size = ButtonSize.medium,
-  });
-
-  double get _height {
+  double _height(AppSizesTheme sizes) {
     switch (size) {
       case ButtonSize.small:
-        return 42;
+        return sizes.buttonSmall;
       case ButtonSize.medium:
-        return 50;
-      case ButtonSize.big:
-        return 56;
+        return sizes.buttonMedium;
+      case ButtonSize.large:
+        return sizes.buttonLarge;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isOrange = variant == ButtonVariant.orange;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+    final isPrimary = variant == ButtonVariant.primary;
+
+    final backgroundColor =
+        isPrimary ? colorScheme.primary : colorScheme.surface;
+    final foregroundColor =
+        isPrimary ? colorScheme.onPrimary : colorScheme.primary;
 
     return SizedBox(
       width: double.infinity,
-      height: _height,
+      height: _height(sizes),
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor:
-              isOrange ? AppColors.primary : AppColors.white,
-          foregroundColor:
-              isOrange ? AppColors.white : AppColors.primary,
+          backgroundColor: backgroundColor,
+          foregroundColor: foregroundColor,
+          disabledBackgroundColor:
+              colorScheme.onSurface.withValues(alpha: .12),
+          disabledForegroundColor:
+              colorScheme.onSurface.withValues(alpha: .38),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(30),
-            side: BorderSide(
-              color: AppColors.primary,
-            ),
+            borderRadius: BorderRadius.circular(sizes.radiusFull),
+            side: isPrimary
+                ? BorderSide.none
+                : BorderSide(color: colorScheme.primary),
           ),
         ),
         child: Text(
           label,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+          style: theme.textTheme.labelLarge?.copyWith(
+            color: onPressed == null ? null : foregroundColor,
           ),
         ),
       ),

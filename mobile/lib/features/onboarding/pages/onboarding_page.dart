@@ -26,15 +26,23 @@ class OnboardingPages {
 }
 
 class _OnboardingPageState extends State<OnboardingPage> {
+  static const _pageTransitionDuration = Duration(milliseconds: 400);
+
   late final PageController _pageController;
   late int _currentPage;
   late AuthMode _authMode;
+
+  int _validPage(int page) {
+    return page
+        .clamp(OnboardingPages.intro, OnboardingPages.accountType)
+        .toInt();
+  }
 
   @override
   void initState() {
     super.initState();
 
-    _currentPage = widget.arguments.initialPage;
+    _currentPage = _validPage(widget.arguments.initialPage);
     _authMode = widget.arguments.authMode;
 
     _pageController = PageController(
@@ -46,8 +54,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
   void didUpdateWidget(covariant OnboardingPage oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.arguments != widget.arguments) {
-      _currentPage = widget.arguments.initialPage;
+    final pageChanged =
+        oldWidget.arguments.initialPage != widget.arguments.initialPage;
+    final modeChanged =
+        oldWidget.arguments.authMode != widget.arguments.authMode;
+
+    if (pageChanged || modeChanged) {
+      _currentPage = _validPage(widget.arguments.initialPage);
       _authMode = widget.arguments.authMode;
 
       _pageController.jumpToPage(_currentPage);
@@ -63,7 +76,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   void _nextPage() {
     if (_currentPage < OnboardingPages.accountType) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 400),
+        duration: _pageTransitionDuration,
         curve: Curves.easeInOutCubic,
       );
     }
@@ -74,7 +87,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
     return Scaffold(
       body: PageView.builder(
         controller: _pageController,
-        itemCount: 4,
+        itemCount: OnboardingPages.accountType + 1,
         physics: const ClampingScrollPhysics(),
         onPageChanged: (index) {
           setState(() {
@@ -85,8 +98,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
           if (index < OnboardingPages.accountType) {
             return OnboardingContent(
               pageIndex: index,
+              indicatorCount: onboardingItems.length,
               item: onboardingItems[index],
-              isLastOnboarding: index == OnboardingPages.welcome,
+              isLastOnboarding: index == onboardingItems.length - 1,
               onContinue: _nextPage,
             );
           }
@@ -95,7 +109,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             authMode: _authMode,
             onBack: () {
               _pageController.previousPage(
-                duration: const Duration(milliseconds: 400),
+                duration: _pageTransitionDuration,
                 curve: Curves.easeInOutCubic,
               );
             },
