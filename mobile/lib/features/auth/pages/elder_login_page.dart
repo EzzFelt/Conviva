@@ -1,44 +1,36 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
-
 import '../../../shared/widgets/back_button_widget.dart';
 import '../../../shared/widgets/button_widget.dart';
-import '../../../shared/widgets/password_text_field_widget.dart';
-import '../../../shared/widgets/text_field_widget.dart';
-
 import '../../onboarding/models/onboarding_arguments.dart';
 import '../../onboarding/pages/onboarding_page.dart';
-
-import '../models/account_type_extensions.dart';
 import '../models/auth_arguments.dart';
 import '../models/auth_mode.dart';
-
 import '../widgets/auth_footer_widget.dart';
 import '../widgets/auth_header_widget.dart';
 
-class LoginPage extends StatefulWidget {
+class ElderLoginPage extends StatefulWidget {
   final AuthArguments arguments;
 
-  const LoginPage({
+  const ElderLoginPage({
     super.key,
     required this.arguments,
   });
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<ElderLoginPage> createState() => _ElderLoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+class _ElderLoginPageState extends State<ElderLoginPage> {
+  final _pinController = TextEditingController();
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    _pinController.dispose();
     super.dispose();
   }
 
@@ -48,8 +40,6 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final accountType = widget.arguments.accountType;
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -76,31 +66,54 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: AppSizes.xl),
 
               const AuthHeaderWidget(
-                title: 'Entre na\nsua conta!',
+                title: 'Acesse com seu PIN',
               ),
 
               const SizedBox(height: AppSizes.xl),
 
-              TextFieldWidget(
-                controller: _emailController,
-                hintText: 'E-mail',
-                keyboardType: TextInputType.emailAddress,
-              ),
-
-              if (accountType.hasPassword) ...[
-                const SizedBox(height: AppSizes.md),
-
-                PasswordTextFieldWidget(
-                  controller: _passwordController,
+              TextField(
+                controller: _pinController,
+                keyboardType: TextInputType.number,
+                obscureText: true,
+                maxLength: 4,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                cursorColor: Theme.of(context).primaryColor,
+                decoration: InputDecoration(
+                  hintText: 'Digite seu PIN de 4 dígitos',
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF9E9E9E),
+                    fontSize: 15,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 18,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(45),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE0E0E0),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(45),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).primaryColor,
+                      width: 1.5,
+                    ),
+                  ),
+                  counterText: '',
                 ),
-              ],
+              ),
 
               const SizedBox(height: AppSizes.xl),
 
               ButtonWidget(
-                label: accountType.hasPassword
-                    ? 'Entrar'
-                    : 'Receber código',
+                label: 'Entrar',
                 variant: ButtonVariant.orange,
                 onPressed: _login,
               ),
@@ -114,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
                   context.go(
                     RouteNames.register,
                     extra: AuthArguments(
-                      accountType: accountType,
+                      accountType: widget.arguments.accountType,
                       authMode: AuthMode.register,
                     ),
                   );
