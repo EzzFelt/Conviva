@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/models/account_type.dart';
 import '../../features/auth/models/auth_arguments.dart';
+import '../../features/auth/pages/elder_login_page.dart';
 import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
 
@@ -67,6 +69,12 @@ class AppRouter {
         path: RouteNames.login,
         builder: (context, state) {
           final arguments = state.extra as AuthArguments;
+
+          if (arguments.accountType == AccountType.elder) {
+            return ElderLoginPage(
+              arguments: arguments,
+            );
+          }
 
           return LoginPage(
             arguments: arguments,

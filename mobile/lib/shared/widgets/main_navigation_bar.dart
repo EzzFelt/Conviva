@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/app_sizes.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 class MainNavigationItem {
   const MainNavigationItem({
@@ -16,19 +15,19 @@ class MainNavigationItem {
 const defaultMainNavigationItems = [
   MainNavigationItem(
     label: 'Início',
-    icon: Symbols.home_rounded,
+    icon: Icons.home_rounded,
   ),
   MainNavigationItem(
     label: 'Menu',
-    icon: Symbols.grid_view_rounded,
+    icon: Icons.grid_view_rounded,
   ),
   MainNavigationItem(
     label: 'Perfil',
-    icon: Symbols.person_rounded,
+    icon: Icons.person_rounded,
   ),
   MainNavigationItem(
     label: 'Opções',
-    icon: Symbols.settings_rounded,
+    icon: Icons.settings_rounded,
   ),
 ];
 

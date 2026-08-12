@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/services/auth_service.dart';
 
 import '../../../shared/widgets/back_button_widget.dart';
 import '../../../shared/widgets/button_widget.dart';
@@ -34,6 +36,7 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _institutionController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -41,25 +44,100 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _emailController.dispose();
     _phoneController.dispose();
     _institutionController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  void _register() {
-    FocusManager.instance.primaryFocus?.unfocus();
-
+  Future<void> _register() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
-    // TODO Firebase
+    final accountType = widget.arguments.accountType;
+
+    try {
+      await AuthRegister().register(
+        name: _nameController.text,
+        email: _emailController.text,
+        phone: _phoneController.text,
+        institutionCode: accountType.hasInstitution
+            ? _institutionController.text
+            : null,
+        password: _passwordController.text,
+        accountType: accountType.name,
+      );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cadastro realizado com Sucesso'),
+        ),
+      );
+
+      context.go(
+        RouteNames.login,
+        extra: AuthArguments(
+          accountType: accountType,
+          authMode: AuthMode.login,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      String message;
+
+      switch (e.code) {
+        case 'email-already-in-use':
+          message = 'Este e-mail já está cadastrado.';
+          break;
+        case 'invalid-email':
+          message = 'Digite um e-mail válido.';
+          break;
+        case 'weak-password':
+          message = 'A senha deve ser mais forte.';
+          break;
+        default:
+          message = 'Erro ao cadastrar usuário: ${e.message}';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+        ),
+      );
+    }
   }
 
   String? _validateRequired(String? value, String message) {
     if (value == null || value.trim().isEmpty) {
       return message;
+    }
+
+    return null;
+  }
+
+  String? _validateEmail(String? value) {
+    final email = value?.trim() ?? '';
+
+    if (email.isEmpty) {
+      return 'Informe o e-mail';
+    }
+
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(email)) {
+      return 'Informe um e-mail válido';
     }
 
     return null;
@@ -134,6 +212,17 @@ class _RegisterPageState extends State<RegisterPage> {
                   SizedBox(height: sizes.md),
 
                   TextFieldWidget(
+                    controller: _emailController,
+                    hintText: 'E-mail',
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    validator: _validateEmail,
+                    autofillHints: const [AutofillHints.email],
+                  ),
+
+                  SizedBox(height: sizes.md),
+
+                  TextFieldWidget(
                     controller: _phoneController,
                     hintText: 'Número de telefone',
                     keyboardType: TextInputType.phone,
@@ -151,7 +240,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   if (accountType.hasInstitution) ...[
                     SizedBox(height: sizes.md),
-
                     TextFieldWidget(
                       controller: _institutionController,
                       hintText: 'Instituição (Código)',
@@ -165,7 +253,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   if (accountType.hasPassword) ...[
                     SizedBox(height: sizes.md),
-
                     PasswordTextFieldWidget(
                       controller: _passwordController,
                       textInputAction: TextInputAction.done,
