@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
@@ -54,13 +55,18 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
     final elderCode = _elderCodeController.text.trim().toUpperCase();
 
     try {
-      // Ensure institution exists (will throw if invalid)
-      await AuthRegister().resolveInstitutionId(institutionCode);
+      // Ensure institution exists (will throw if invalid) and attach it to the family user
+      final resolvedInstitutionId = await AuthRegister().resolveInstitutionId(institutionCode);
 
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null || currentUser.uid.trim().isEmpty) {
         throw Exception('Usuário familiar não autenticado.');
       }
+
+      // Persist institution association for the family user so link checks pass
+      await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).update({
+        'institutionId': resolvedInstitutionId,
+      });
 
       await AuthService.instance.linkFamilyMemberToElder(
         familyUid: currentUser.uid,
