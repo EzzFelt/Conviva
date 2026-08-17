@@ -1,1 +1,28 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"conviva-63d6a","appId":"1:434623142543:android:f2f97f240496fde92baefa","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"conviva-63d6a","configurations":{"android":"1:434623142543:android:f2f97f240496fde92baefa","ios":"1:434623142543:ios:988dd3533cdbf0d42baefa","macos":"1:434623142543:ios:988dd3533cdbf0d42baefa","web":"1:434623142543:web:7806be6ed63750bb2baefa","windows":"1:434623142543:web:7c8f5827606f10a52baefa"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "conviva-63d6a",
+          "appId": "1:434623142543:android:f2f97f240496fde92baefa",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "conviva-63d6a",
+          "configurations": {
+            "android": "1:434623142543:android:f2f97f240496fde92baefa",
+            "ios": "1:434623142543:ios:988dd3533cdbf0d42baefa",
+            "macos": "1:434623142543:ios:988dd3533cdbf0d42baefa",
+            "web": "1:434623142543:web:7806be6ed63750bb2baefa",
+            "windows": "1:434623142543:web:7c8f5827606f10a52baefa"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

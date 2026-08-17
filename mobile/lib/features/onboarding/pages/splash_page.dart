@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,10 +25,48 @@ class _SplashPageState extends State<SplashPage> {
 
     _navigationTimer = Timer(
       const Duration(seconds: 2),
-      () {
+      () async {
         if (!mounted) return;
 
-        context.go(RouteNames.onboarding);
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (currentUser == null) {
+          context.go(RouteNames.onboarding);
+          return;
+        }
+
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(currentUser.uid)
+              .get();
+
+          if (!mounted) return;
+
+          final data = userDoc.data() ?? {};
+          final userType = data['type']?.toString();
+
+          if (userType == 'idoso') {
+            context.go(RouteNames.elderHome, extra: data);
+          } else if (userType == 'family') {
+            final activeFamilyLink = await FirebaseFirestore.instance
+                .collection('familyLinks')
+                .where('familiarId', isEqualTo: currentUser.uid)
+                .where('status', isEqualTo: 'active')
+                .limit(1)
+                .get();
+
+            if (activeFamilyLink.docs.isNotEmpty) {
+              context.go(RouteNames.familyHome, extra: data['name']?.toString() ?? 'Maria Antônia');
+            } else {
+              context.go(RouteNames.familyLink);
+            }
+          } else {
+            context.go(RouteNames.onboarding);
+          }
+        } catch (_) {
+          if (!mounted) return;
+          context.go(RouteNames.onboarding);
+        }
       },
     );
   }

@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/services/auth_service.dart';
 
 import '../../../shared/widgets/back_button_widget.dart';
 import '../../../shared/widgets/button_widget.dart';
@@ -12,6 +14,7 @@ import '../../../shared/widgets/text_field_widget.dart';
 import '../../onboarding/models/onboarding_arguments.dart';
 import '../../onboarding/pages/onboarding_page.dart';
 
+import '../models/account_type.dart';
 import '../models/account_type_extensions.dart';
 import '../models/auth_arguments.dart';
 import '../models/auth_mode.dart';
@@ -35,6 +38,7 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -43,14 +47,66 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _login() {
+  Future<void> _login() async {
     FocusManager.instance.primaryFocus?.unfocus();
 
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!(_formKey.currentState?.validate() ?? false) || _isLoading) {
       return;
     }
 
-    // TODO: Firebase + Provider
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final accountType = widget.arguments.accountType.name;
+      final userDoc = await AuthService.instance.loginWithPhoneAndPassword(
+        phone: _phoneController.text,
+        password: _passwordController.text,
+        accountType: accountType,
+      );
+
+      final userData = userDoc.data() ?? {};
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('Usuário não autenticado.');
+      }
+
+      final userType = userData['type']?.toString() ?? '';
+      if (widget.arguments.accountType == AccountType.family && userType != 'family') {
+        throw Exception('Este usuário não está autorizado como familiar.');
+      }
+
+      if (widget.arguments.accountType == AccountType.caregiver && userType != 'caregiver') {
+        throw Exception('Este usuário não está autorizado como cuidador.');
+      }
+
+      if (widget.arguments.accountType == AccountType.family) {
+        if (!mounted) return;
+        context.go(RouteNames.familyLink);
+        return;
+      }
+
+      if (!mounted) return;
+      context.go(RouteNames.elderHome, extra: userData);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is Exception
+                ? error.toString().replaceFirst('Exception: ', '')
+                : 'Não foi possível fazer login.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   String? _validatePhone(String? value) {
