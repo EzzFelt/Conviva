@@ -8,6 +8,8 @@ import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
 
 import '../../features/home/elder/elder_home_page.dart';
+import '../../features/home/family/family_home_page.dart';
+import '../../features/auth/pages/family_link_page.dart';
 
 import '../../features/onboarding/models/onboarding_arguments.dart';
 import '../../features/onboarding/pages/onboarding_page.dart';
@@ -19,7 +21,7 @@ class AppRouter {
   AppRouter._();
 
   static final router = GoRouter(
-    initialLocation: RouteNames.elderHome,
+    initialLocation: RouteNames.splash,
 
     routes: [
       GoRoute(
@@ -83,8 +85,28 @@ class AppRouter {
       ),
 
       GoRoute(
+        path: RouteNames.familyLink,
+              builder: (context, state) => const FamilyLinkPage(),
+      ),
+
+      GoRoute(
         path: RouteNames.elderHome,
-        builder: (context, state) => const ElderHomePage(),
+        builder: (context, state) {
+          final elderData = state.extra as Map<String, dynamic>? ?? const {};
+          return ElderHomePage(
+            elderData: elderData,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.familyHome,
+        builder: (context, state) {
+          final elderName = state.extra is String
+              ? state.extra as String
+              : 'Maria Antônia';
+          return FamilyHomePage(elderName: elderName);
+        },
       ),
     ],
   );

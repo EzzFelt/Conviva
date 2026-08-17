@@ -2,11 +2,12 @@ import 'account_type.dart';
 
 extension AccountTypeExtensions on AccountType {
   bool get hasPassword {
-    return this != AccountType.elder;
+    return true;
   }
 
   bool get hasInstitution {
-    return this == AccountType.caregiver;
+    // Families should also be associated with an institution at registration
+    return this == AccountType.caregiver || this == AccountType.elder || this == AccountType.family;
   }
 
   String get title {

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../shared/widgets/back_button_widget.dart';
 import '../../../shared/widgets/button_widget.dart';
 import '../../onboarding/models/onboarding_arguments.dart';
@@ -26,16 +26,82 @@ class ElderLoginPage extends StatefulWidget {
 }
 
 class _ElderLoginPageState extends State<ElderLoginPage> {
-  final _pinController = TextEditingController();
+  final _institutionController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
-    _pinController.dispose();
+    _institutionController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  void _login() {
-    // TODO: Firebase + Provider
+  Future<void> _login() async {
+    if (_isLoading) {
+      return;
+    }
+
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    final institutionId = _institutionController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (institutionId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe o código da instituição.')),
+      );
+      return;
+    }
+
+    if (password.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Informe a senha.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final elderUser = await ElderAuthService.instance.loginWithInstitutionAndPassword(
+        institutionId: institutionId,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      final data = elderUser.data() ?? {};
+      final userType = data['type']?.toString() ?? '';
+
+      if (userType != 'idoso') {
+        throw Exception('Este usuário não está autorizado para entrar como idoso.');
+      }
+
+      context.go(RouteNames.elderHome, extra: data);
+    } catch (error) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            error is Exception
+                ? error.toString().replaceFirst('Exception: ', '')
+                : 'Dados de acesso inválidos. Tente novamente.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -66,23 +132,19 @@ class _ElderLoginPageState extends State<ElderLoginPage> {
               const SizedBox(height: AppSizes.xl),
 
               const AuthHeaderWidget(
-                title: 'Acesse com seu PIN',
+                title: 'Acesse com sua conta',
               ),
 
               const SizedBox(height: AppSizes.xl),
 
               TextField(
-                controller: _pinController,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                maxLength: 4,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(4),
-                ],
+                controller: _institutionController,
+                enabled: !_isLoading,
+                keyboardType: TextInputType.text,
+                obscureText: false,
                 cursorColor: Theme.of(context).primaryColor,
                 decoration: InputDecoration(
-                  hintText: 'Digite seu PIN de 4 dígitos',
+                  hintText: 'Código da instituição',
                   hintStyle: const TextStyle(
                     color: Color(0xFF9E9E9E),
                     fontSize: 15,
@@ -106,16 +168,51 @@ class _ElderLoginPageState extends State<ElderLoginPage> {
                       width: 1.5,
                     ),
                   ),
-                  counterText: '',
+                ),
+              ),
+
+              const SizedBox(height: AppSizes.md),
+
+              TextField(
+                controller: _passwordController,
+                enabled: !_isLoading,
+                keyboardType: TextInputType.visiblePassword,
+                obscureText: true,
+                cursorColor: Theme.of(context).primaryColor,
+                decoration: InputDecoration(
+                  hintText: 'Senha',
+                  hintStyle: const TextStyle(
+                    color: Color(0xFF9E9E9E),
+                    fontSize: 15,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 18,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(45),
+                    borderSide: const BorderSide(
+                      color: Color(0xFFE0E0E0),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(45),
+                    borderSide: BorderSide(
+                      color: Theme.of(context).primaryColor,
+                      width: 1.5,
+                    ),
+                  ),
                 ),
               ),
 
               const SizedBox(height: AppSizes.xl),
 
               ButtonWidget(
-                label: 'Entrar',
+                label: _isLoading ? 'Entrando...' : 'Entrar',
                 variant: ButtonVariant.primary,
-                onPressed: _login,
+                onPressed: _isLoading ? null : _login,
               ),
 
               const SizedBox(height: AppSizes.lg),
@@ -123,15 +220,17 @@ class _ElderLoginPageState extends State<ElderLoginPage> {
               AuthFooterWidget(
                 text: 'Ainda não possui conta?',
                 actionText: 'Cadastre-se',
-                onTap: () {
-                  context.go(
-                    RouteNames.register,
-                    extra: AuthArguments(
-                      accountType: widget.arguments.accountType,
-                      authMode: AuthMode.register,
-                    ),
-                  );
-                },
+                onTap: _isLoading
+                    ? () {}
+                    : () {
+                        context.go(
+                          RouteNames.register,
+                          extra: AuthArguments(
+                            accountType: widget.arguments.accountType,
+                            authMode: AuthMode.register,
+                          ),
+                        );
+                      },
               ),
             ],
           ),

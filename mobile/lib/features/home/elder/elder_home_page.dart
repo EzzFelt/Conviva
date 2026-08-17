@@ -11,7 +11,12 @@ import '../widgets/elder_home_header.dart';
 import '../widgets/next_task_card.dart';
 
 class ElderHomePage extends StatelessWidget {
-  const ElderHomePage({super.key});
+  const ElderHomePage({
+    super.key,
+    this.elderData = const {},
+  });
+
+  final Map<String, dynamic> elderData;
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +24,7 @@ class ElderHomePage extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final sizes = context.appSizes;
     const currentTask = NextTaskType.breakfast;
+    final elderName = elderData['name']?.toString() ?? 'Usuário';
 
     Widget chatAvatar(IconData icon) {
       return CircleAvatar(
@@ -70,7 +76,7 @@ class ElderHomePage extends StatelessWidget {
             child: Column(
               children: [
                 ElderHomeHeader(
-                  name: 'Julia',
+                  name: elderName,
                   notificationCount: 1,
                   onNotificationsPressed: () {},
                   avatar: Icon(

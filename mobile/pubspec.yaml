@@ -16,6 +16,7 @@ dependencies:
 
   flutter_svg: ^2.2.0
 
+  crypto: ^3.0.6
   lucide_icons_flutter: ^3.1.14+2
   firebase_core: ^4.13.0
   firebase_auth: ^6.5.7

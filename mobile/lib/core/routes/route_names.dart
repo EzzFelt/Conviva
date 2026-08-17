@@ -6,6 +6,8 @@ class RouteNames {
 
   static const register = '/register';
   static const login = '/login';
+  static const familyLink = '/family-link';
 
   static const elderHome = '/home/elder';
+  static const familyHome = '/home/family';
 }

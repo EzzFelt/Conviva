@@ -14,6 +14,7 @@ import '../../../shared/widgets/text_field_widget.dart';
 import '../../onboarding/models/onboarding_arguments.dart';
 import '../../onboarding/pages/onboarding_page.dart';
 
+import '../models/account_type.dart';
 import '../models/account_type_extensions.dart';
 import '../models/auth_arguments.dart';
 import '../models/auth_mode.dart';
@@ -61,13 +62,14 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       await AuthRegister().register(
         name: _nameController.text,
-        email: _emailController.text,
+        email: accountType == AccountType.elder ? null : _emailController.text,
         phone: _phoneController.text,
         institutionCode: accountType.hasInstitution
             ? _institutionController.text
             : null,
         password: _passwordController.text,
-        accountType: accountType.name,
+        pin: null,
+        accountType: accountType == AccountType.elder ? 'idoso' : accountType.name,
       );
 
       if (!mounted) return;
@@ -211,28 +213,31 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   SizedBox(height: sizes.md),
 
-                  TextFieldWidget(
-                    controller: _emailController,
-                    hintText: 'E-mail',
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    validator: _validateEmail,
-                    autofillHints: const [AutofillHints.email],
-                  ),
+                  if (accountType != AccountType.elder) ...[
+                    TextFieldWidget(
+                      controller: _emailController,
+                      hintText: 'E-mail',
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      validator: _validateEmail,
+                      autofillHints: const [AutofillHints.email],
+                    ),
 
-                  SizedBox(height: sizes.md),
+                    SizedBox(height: sizes.md),
+                  ],
 
                   TextFieldWidget(
                     controller: _phoneController,
                     hintText: 'Número de telefone',
                     keyboardType: TextInputType.phone,
                     textInputAction: accountType.hasPassword ||
-                            accountType.hasInstitution
+                            accountType.hasInstitution ||
+                            accountType == AccountType.elder
                         ? TextInputAction.next
                         : TextInputAction.done,
                     validator: _validatePhone,
                     onFieldSubmitted:
-                        accountType.hasPassword || accountType.hasInstitution
+                        accountType.hasPassword || accountType.hasInstitution || accountType == AccountType.elder
                             ? null
                             : (_) => _register(),
                     autofillHints: const [AutofillHints.telephoneNumber],
@@ -242,7 +247,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     SizedBox(height: sizes.md),
                     TextFieldWidget(
                       controller: _institutionController,
-                      hintText: 'Instituição (Código)',
+                      hintText: accountType == AccountType.elder
+                          ? 'Código da instituição'
+                          : 'Instituição (Código)',
                       textInputAction: TextInputAction.next,
                       validator: (value) => _validateRequired(
                         value,
@@ -251,19 +258,17 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                   ],
 
-                  if (accountType.hasPassword) ...[
-                    SizedBox(height: sizes.md),
-                    PasswordTextFieldWidget(
-                      controller: _passwordController,
-                      textInputAction: TextInputAction.done,
-                      validator: (value) => _validateRequired(
-                        value,
-                        'Informe a senha',
-                      ),
-                      onFieldSubmitted: (_) => _register(),
-                      autofillHints: const [AutofillHints.newPassword],
+                  SizedBox(height: sizes.md),
+                  PasswordTextFieldWidget(
+                    controller: _passwordController,
+                    textInputAction: TextInputAction.done,
+                    validator: (value) => _validateRequired(
+                      value,
+                      'Informe a senha',
                     ),
-                  ],
+                    onFieldSubmitted: (_) => _register(),
+                    autofillHints: const [AutofillHints.newPassword],
+                  ),
 
                   SizedBox(height: sizes.xl),
 
