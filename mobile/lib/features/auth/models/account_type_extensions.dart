@@ -6,7 +6,8 @@ extension AccountTypeExtensions on AccountType {
   }
 
   bool get hasInstitution {
-    return this == AccountType.caregiver || this == AccountType.elder;
+    // Families should also be associated with an institution at registration
+    return this == AccountType.caregiver || this == AccountType.elder || this == AccountType.family;
   }
 
   String get title {

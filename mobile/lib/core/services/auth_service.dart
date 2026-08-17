@@ -94,7 +94,7 @@ class AuthRegister {
 
     String? institutionId;
 
-    if (normalizedType == 'caregiver') {
+    if (normalizedType == 'caregiver' || normalizedType == 'family') {
       if (institutionCode == null || institutionCode.trim().isEmpty) {
         throw Exception('Código da instituição inválido');
       }
@@ -339,6 +339,75 @@ class AuthService {
     await _firestore.collection('familyLinks').add({
       'createdAt': FieldValue.serverTimestamp(),
       'elderId': elderUid,
+      'familiarId': normalizedFamilyUid,
+      'institutionId': elderInstitutionId,
+      'status': 'active',
+    });
+  }
+
+  /// Link using the elder document id (uid) instead of elderLinkCode.
+  Future<void> linkFamilyMemberToElderByUid({
+    required String familyUid,
+    required String elderUid,
+  }) async {
+    final normalizedFamilyUid = familyUid.trim();
+    final normalizedElderUid = elderUid.trim();
+
+    if (normalizedFamilyUid.isEmpty) {
+      throw Exception('Usuário familiar não identificado.');
+    }
+
+    if (normalizedElderUid.isEmpty) {
+      throw Exception('Informe o id do idoso.');
+    }
+
+    final familyDoc = await _firestore.collection('users').doc(normalizedFamilyUid).get();
+    if (!familyDoc.exists || familyDoc.data() == null) {
+      throw Exception('Perfil do familiar não encontrado.');
+    }
+
+    final familyData = familyDoc.data()!;
+    final familyInstitutionId = familyData['institutionId']?.toString();
+    if (familyInstitutionId == null || familyInstitutionId.isEmpty) {
+      throw Exception('O responsável não está vinculado a uma instituição válida.');
+    }
+
+    final elderDocRef = await _firestore.collection('users').doc(normalizedElderUid).get();
+    if (!elderDocRef.exists || elderDocRef.data() == null) {
+      throw Exception('Idoso não encontrado.');
+    }
+
+    final elderData = elderDocRef.data()!;
+    final elderInstitutionId = elderData['institutionId']?.toString();
+    final type = elderData['type']?.toString();
+
+    if (type != 'idoso') {
+      throw Exception('O usuário informado não é um idoso.');
+    }
+
+    if (elderInstitutionId == null || elderInstitutionId.isEmpty) {
+      throw Exception('O idoso não possui instituição válida.');
+    }
+
+    if (elderInstitutionId != familyInstitutionId) {
+      throw Exception('O idoso e o familiar devem pertencer à mesma instituição.');
+    }
+
+    final existingLink = await _firestore
+        .collection('familyLinks')
+        .where('elderId', isEqualTo: normalizedElderUid)
+        .where('familiarId', isEqualTo: normalizedFamilyUid)
+        .where('status', isEqualTo: 'active')
+        .limit(1)
+        .get();
+
+    if (existingLink.docs.isNotEmpty) {
+      throw Exception('Você já está vinculado a este idoso.');
+    }
+
+    await _firestore.collection('familyLinks').add({
+      'createdAt': FieldValue.serverTimestamp(),
+      'elderId': normalizedElderUid,
       'familiarId': normalizedFamilyUid,
       'institutionId': elderInstitutionId,
       'status': 'active',

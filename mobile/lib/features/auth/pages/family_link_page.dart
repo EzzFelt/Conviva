@@ -18,8 +18,7 @@ class FamilyLinkPage extends StatefulWidget {
 
 class _FamilyLinkPageState extends State<FamilyLinkPage> {
   final _nameController = TextEditingController();
-  final _codeController = TextEditingController(); // institution code
-  final _elderCodeController = TextEditingController();
+  final _elderUidController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _receiveNotifications = true;
   bool _isSubmitting = false;
@@ -27,8 +26,7 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _codeController.dispose();
-    _elderCodeController.dispose();
+    _elderUidController.dispose();
     super.dispose();
   }
 
@@ -37,10 +35,11 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
     return null;
   }
 
-  String? _validateElderCode(String? value) {
-    final normalized = (value ?? '').trim().toUpperCase();
-    if (normalized.isEmpty) return 'Informe o código do idoso.';
-    if (!RegExp(r'^ELD[A-Z0-9]+$').hasMatch(normalized)) return 'Use um código no formato ELD4321.';
+  String? _validateElderUid(String? value) {
+    final normalized = (value ?? '').trim();
+    if (normalized.isEmpty) return 'Informe o id do idoso.';
+    // basic uid validation: at least 6 characters
+    if (normalized.length < 6) return 'Informe um id de idoso válido.';
     return null;
   }
 
@@ -51,26 +50,30 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
     setState(() => _isSubmitting = true);
 
     final name = _nameController.text.trim();
-    final institutionCode = _codeController.text.trim();
-    final elderCode = _elderCodeController.text.trim().toUpperCase();
+    final elderUid = _elderUidController.text.trim();
 
     try {
-      // Ensure institution exists (will throw if invalid) and attach it to the family user
-      final resolvedInstitutionId = await AuthRegister().resolveInstitutionId(institutionCode);
-
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null || currentUser.uid.trim().isEmpty) {
         throw Exception('Usuário familiar não autenticado.');
       }
 
-      // Persist institution association for the family user so link checks pass
-      await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).update({
-        'institutionId': resolvedInstitutionId,
-      });
+      // Ensure the family user has an institution associated (must have been provided at registration)
+      final familyDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
+      if (!familyDoc.exists || familyDoc.data() == null) {
+        throw Exception('Perfil do familiar não encontrado.');
+      }
 
-      await AuthService.instance.linkFamilyMemberToElder(
+      final familyData = familyDoc.data()!;
+      final familyInstitutionId = familyData['institutionId']?.toString();
+      if (familyInstitutionId == null || familyInstitutionId.isEmpty) {
+        throw Exception('O responsável não está vinculado a uma instituição válida.');
+      }
+
+      // Link by elder uid
+      await AuthService.instance.linkFamilyMemberToElderByUid(
         familyUid: currentUser.uid,
-        elderLinkCode: elderCode,
+        elderUid: elderUid,
       );
 
       if (!mounted) return;
@@ -156,9 +159,9 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
 
                       SizedBox(height: sizes.lg),
 
-                      // Elder link code field
+                      // Elder id field
                       Text(
-                        'Código do idoso (ex: ELD4321)',
+                        'Id do idoso (uid)',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: colorScheme.onPrimary,
                           fontWeight: FontWeight.w600,
@@ -166,46 +169,13 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
                       ),
                       SizedBox(height: sizes.lg),
                       TextFormField(
-                        controller: _elderCodeController,
+                        controller: _elderUidController,
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: colorScheme.onSurface,
                         ),
-                        textCapitalization: TextCapitalization.characters,
-                        validator: _validateElderCode,
+                        validator: _validateElderUid,
                         decoration: InputDecoration(
-                          hintText: 'ELD4321',
-                          filled: true,
-                          fillColor: const Color(0xFFEAEAEA),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: sizes.lg,
-                            vertical: sizes.md,
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: sizes.lg),
-
-                      // Institution code
-                      Text(
-                        'Qual o código do local que esse parente se encontra?',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: colorScheme.onPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: sizes.lg),
-                      TextFormField(
-                        controller: _codeController,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: colorScheme.onSurface,
-                        ),
-                        validator: (v) => _validateNotEmpty(v, 'Informe o código da instituição.'),
-                        decoration: InputDecoration(
-                          hintText: 'Código',
+                          hintText: 'Id do idoso',
                           filled: true,
                           fillColor: const Color(0xFFEAEAEA),
                           border: OutlineInputBorder(
