@@ -1,4 +1,13 @@
-import 'package:conviva/features/auth/models/auth_mode.dart';
+import '../../auth/models/auth_mode.dart';
+
+class OnboardingPages {
+  OnboardingPages._();
+
+  static const intro = 0;
+  static const protection = 1;
+  static const welcome = 2;
+  static const accountType = 3;
+}
 
 class OnboardingArguments {
   final int initialPage;

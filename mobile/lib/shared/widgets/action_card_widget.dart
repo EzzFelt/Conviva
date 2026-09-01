@@ -24,6 +24,7 @@ class ActionCardWidget extends StatelessWidget {
     this.illustrationBackgroundColor,
     this.showIllustrationBackground = true,
     this.illustrationSize,
+    this.illustrationSlotSize,
     this.layout = ActionCardLayout.illustrationFirst,
   }) : assert(
           (illustration == null) != (imageAsset == null),
@@ -42,6 +43,7 @@ class ActionCardWidget extends StatelessWidget {
   final Color? illustrationBackgroundColor;
   final bool showIllustrationBackground;
   final double? illustrationSize;
+  final double? illustrationSlotSize;
   final ActionCardLayout layout;
 
   @override
@@ -51,6 +53,8 @@ class ActionCardWidget extends StatelessWidget {
     final sizes = context.appSizes;
     final cardColor = backgroundColor ?? context.appGradientColors.bottom;
     final illustrationDimension = illustrationSize ?? sizes.xxl + sizes.xl;
+    final illustrationSlotDimension =
+        illustrationSlotSize ?? sizes.xxl * 2.5;
     final illustrationContent = imageAsset != null
         ? Image.asset(
             imageAsset!,
@@ -58,51 +62,60 @@ class ActionCardWidget extends StatelessWidget {
             semanticLabel: imageSemanticLabel,
           )
         : illustration!;
-    final framedIllustration = Container(
-      width: illustrationDimension,
-      height: illustrationDimension,
-      padding: showIllustrationBackground
-          ? EdgeInsets.all(sizes.sm)
-          : EdgeInsets.zero,
-      decoration: BoxDecoration(
-        color: showIllustrationBackground
-            ? illustrationBackgroundColor ??
-                colorScheme.primary.withValues(alpha: .82)
-            : Colors.transparent,
-        shape: BoxShape.circle,
-      ),
-      clipBehavior:
-          showIllustrationBackground ? Clip.antiAlias : Clip.none,
-      alignment: Alignment.center,
-      child: illustrationContent,
-    );
-    final textContent = SizedBox(
-      width: double.infinity,
-      height: sizes.xxl + sizes.lg,
+    final framedIllustration = SizedBox.square(
+      dimension: illustrationSlotDimension,
       child: Center(
-        child: FractionallySizedBox(
-          widthFactor: .86,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  color: colorScheme.onPrimary,
-                ),
-              ),
-              if (description != null) ...[
-                SizedBox(height: sizes.sm),
+        child: Container(
+          width: illustrationDimension,
+          height: illustrationDimension,
+          padding: showIllustrationBackground
+              ? EdgeInsets.all(sizes.sm)
+              : EdgeInsets.zero,
+          decoration: BoxDecoration(
+            color: showIllustrationBackground
+                ? illustrationBackgroundColor ??
+                    colorScheme.primary.withValues(alpha: .82)
+                : Colors.transparent,
+            shape: BoxShape.circle,
+          ),
+          clipBehavior:
+              showIllustrationBackground ? Clip.antiAlias : Clip.none,
+          alignment: Alignment.center,
+          child: illustrationContent,
+        ),
+      ),
+    );
+    final textContent = ConstrainedBox(
+      constraints: BoxConstraints(
+        minHeight: sizes.xxl + sizes.lg,
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: Center(
+          child: FractionallySizedBox(
+            widthFactor: .86,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  description!,
+                  title,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge?.copyWith(
+                  style: theme.textTheme.headlineSmall?.copyWith(
                     color: colorScheme.onPrimary,
                   ),
                 ),
+                if (description != null) ...[
+                  SizedBox(height: sizes.sm),
+                  Text(
+                    description!,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: colorScheme.onPrimary,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

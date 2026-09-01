@@ -73,7 +73,7 @@ class MainNavigationBar extends StatelessWidget {
           minimum: EdgeInsets.symmetric(horizontal: sizes.sm),
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              minHeight: sizes.xxl + sizes.xl,
+              minHeight: sizes.xxl + sizes.xl + sizes.sm,
             ),
             child: Row(
               children: List.generate(items.length, (index) {
@@ -100,7 +100,7 @@ class MainNavigationBar extends StatelessWidget {
                           children: [
                             Icon(
                               item.icon,
-                              size: sizes.xl,
+                              size: sizes.icon(sizes.xl),
                               color: color,
                               fill: 1,
                             ),

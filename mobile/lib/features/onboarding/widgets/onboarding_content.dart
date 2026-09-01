@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
-import '../../../core/routes/route_names.dart';
 
 import '../../../shared/widgets/button_widget.dart';
 
-import '../../auth/models/auth_mode.dart';
-
-import '../models/onboarding_arguments.dart';
-import '../pages/onboarding_page.dart';
 import '../models/onboarding_item.dart';
 import 'indicator_widget.dart';
 
@@ -22,6 +16,7 @@ class OnboardingContent extends StatelessWidget {
     required this.item,
     required this.isLastOnboarding,
     required this.onContinue,
+    required this.onLogin,
   });
 
   final int pageIndex;
@@ -29,6 +24,7 @@ class OnboardingContent extends StatelessWidget {
   final OnboardingItem item;
   final bool isLastOnboarding;
   final VoidCallback onContinue;
+  final VoidCallback onLogin;
 
   @override
   Widget build(BuildContext context) {
@@ -189,15 +185,7 @@ class OnboardingContent extends StatelessWidget {
                         Padding(
                           padding: EdgeInsets.only(bottom: sizes.md),
                           child: TextButton(
-                            onPressed: () {
-                              context.go(
-                                RouteNames.onboarding,
-                                extra: const OnboardingArguments(
-                                  initialPage: OnboardingPages.accountType,
-                                  authMode: AuthMode.login,
-                                ),
-                              );
-                            },
+                            onPressed: onLogin,
                             style: TextButton.styleFrom(
                               foregroundColor: foregroundColor,
                               minimumSize: Size(0, sizes.buttonSmall),

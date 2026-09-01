@@ -10,6 +10,7 @@ class ContentPanelWidget extends StatelessWidget {
     this.padding,
     this.topPanelPadding,
     this.margin,
+    this.borderRadius,
   });
 
   final Widget child;
@@ -17,13 +18,14 @@ class ContentPanelWidget extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? topPanelPadding;
   final EdgeInsetsGeometry? margin;
+  final BorderRadiusGeometry? borderRadius;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sizes = context.appSizes;
     final radius = Radius.circular(sizes.radiusLg + sizes.sm);
-    final borderRadius = BorderRadius.all(radius);
+    final resolvedBorderRadius = borderRadius ?? BorderRadius.all(radius);
 
     Widget surfacePanel() {
       return Container(
@@ -31,7 +33,7 @@ class ContentPanelWidget extends StatelessWidget {
         padding: padding,
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
-          borderRadius: borderRadius,
+          borderRadius: resolvedBorderRadius,
         ),
         clipBehavior: Clip.antiAlias,
         child: child,
@@ -51,7 +53,7 @@ class ContentPanelWidget extends StatelessWidget {
       margin: margin,
       decoration: BoxDecoration(
         color: theme.scaffoldBackgroundColor,
-        borderRadius: borderRadius,
+        borderRadius: resolvedBorderRadius,
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(

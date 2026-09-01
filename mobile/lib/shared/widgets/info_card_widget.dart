@@ -12,20 +12,33 @@ enum InfoCardSize {
 class InfoCardWidget extends StatelessWidget {
   const InfoCardWidget({
     super.key,
-    required this.leading,
-    required this.title,
-    required this.subtitle,
+    this.leading,
+    this.title,
+    this.subtitle,
+    this.content,
+    this.trailing,
     this.size = InfoCardSize.medium,
     this.showGotoButton = false,
     this.onPressed,
-  });
+    this.borderRadius,
+  })  : assert(
+          content != null || (title != null && subtitle != null),
+          'Informe content ou title e subtitle.',
+        ),
+        assert(
+          !showGotoButton || trailing == null,
+          'Use showGotoButton ou trailing, mas não os dois.',
+        );
 
-  final Widget leading;
-  final String title;
-  final String subtitle;
+  final Widget? leading;
+  final String? title;
+  final String? subtitle;
+  final Widget? content;
+  final Widget? trailing;
   final InfoCardSize size;
   final bool showGotoButton;
   final VoidCallback? onPressed;
+  final BorderRadius? borderRadius;
 
   double _leadingSize(AppSizesTheme sizes) {
     return switch (size) {
@@ -63,49 +76,62 @@ class InfoCardWidget extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
     final leadingSize = _leadingSize(sizes);
+    final resolvedBorderRadius = borderRadius ??
+        BorderRadius.circular(sizes.radiusFull);
 
     return Material(
       color: colorScheme.surface,
       elevation: sizes.xs / 2,
       shadowColor: colorScheme.shadow.withValues(alpha: .24),
-      borderRadius: BorderRadius.circular(sizes.radiusFull),
+      borderRadius: resolvedBorderRadius,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onPressed,
+        borderRadius: resolvedBorderRadius,
         child: Padding(
           padding: _padding(sizes),
           child: Row(
             children: [
-              SizedBox.square(
-                dimension: leadingSize,
-                child: leading,
-              ),
-              SizedBox(width: sizes.sm),
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    Text(
-                      subtitle,
-                      maxLines: size == InfoCardSize.large ? 2 : 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
+              if (leading != null) ...[
+                SizedBox.square(
+                  dimension: leadingSize,
+                  child: leading,
                 ),
+                SizedBox(width: sizes.sm),
+              ],
+              Expanded(
+                child: content ??
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        Text(
+                          subtitle ?? '',
+                          maxLines: size == InfoCardSize.large ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
               ),
+              if (trailing != null) ...[
+                SizedBox(width: sizes.sm),
+                trailing!,
+              ],
               if (showGotoButton) ...[
                 SizedBox(width: sizes.sm),
-                GotoButtonWidget(size: _gotoButtonSize()),
+                GotoButtonWidget(
+                  size: _gotoButtonSize(),
+                  onPressed: onPressed,
+                ),
               ],
             ],
           ),

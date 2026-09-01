@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 
 enum ButtonVariant {
   primary,
+  secondary,
   surface,
+  outlined,
 }
 
 enum ButtonSize {
@@ -43,12 +46,28 @@ class ButtonWidget extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
-    final isPrimary = variant == ButtonVariant.primary;
-
-    final backgroundColor =
-        isPrimary ? colorScheme.primary : colorScheme.surface;
-    final foregroundColor =
-        isPrimary ? colorScheme.onPrimary : colorScheme.primary;
+    final (backgroundColor, foregroundColor, borderSide) = switch (variant) {
+      ButtonVariant.primary => (
+          colorScheme.primary,
+          colorScheme.onPrimary,
+          BorderSide.none,
+        ),
+      ButtonVariant.secondary => (
+          context.appGradientColors.bottom,
+          colorScheme.onPrimary,
+          BorderSide.none,
+        ),
+      ButtonVariant.surface => (
+          colorScheme.surface,
+          colorScheme.primary,
+          BorderSide.none,
+        ),
+      ButtonVariant.outlined => (
+          colorScheme.surface,
+          colorScheme.primary,
+          BorderSide(color: colorScheme.primary),
+        ),
+    };
 
     return SizedBox(
       width: double.infinity,
@@ -56,7 +75,7 @@ class ButtonWidget extends StatelessWidget {
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          elevation: 0,
+          elevation: variant == ButtonVariant.outlined ? 0 : 1,
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
           disabledBackgroundColor:
@@ -65,9 +84,7 @@ class ButtonWidget extends StatelessWidget {
               colorScheme.onSurface.withValues(alpha: .38),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(sizes.radiusFull),
-            side: isPrimary
-                ? BorderSide.none
-                : BorderSide(color: colorScheme.primary),
+            side: borderSide,
           ),
         ),
         child: Text(

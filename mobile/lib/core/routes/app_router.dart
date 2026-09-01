@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../features/auth/models/account_type.dart';
 import '../../features/auth/models/auth_arguments.dart';
 import '../../features/auth/pages/elder_login_page.dart';
+import '../../features/auth/pages/family_link_page.dart';
 import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
-
+import '../../features/chat/pages/chat_page.dart';
+import '../../features/home/caregiver/caregiver_home_page.dart';
 import '../../features/home/elder/elder_home_page.dart';
 import '../../features/home/family/family_home_page.dart';
-import '../../features/auth/pages/family_link_page.dart';
-
+import '../../features/menu/pages/menu_page.dart';
 import '../../features/onboarding/models/onboarding_arguments.dart';
 import '../../features/onboarding/pages/onboarding_page.dart';
 import '../../features/onboarding/pages/splash_page.dart';
-
+import '../../features/profile/pages/profile_page.dart';
+import '../../features/routine/pages/routine_page.dart';
+import '../../features/settings/pages/settings_page.dart';
+import '../../shared/widgets/main_navigation_shell.dart';
 import 'route_names.dart';
 
 class AppRouter {
@@ -22,13 +25,11 @@ class AppRouter {
 
   static final router = GoRouter(
     initialLocation: RouteNames.splash,
-
     routes: [
       GoRoute(
         path: RouteNames.splash,
         builder: (context, state) => const SplashPage(),
       ),
-
       GoRoute(
         path: RouteNames.onboarding,
         pageBuilder: (context, state) {
@@ -38,9 +39,7 @@ class AppRouter {
 
           return CustomTransitionPage(
             key: state.pageKey,
-            child: OnboardingPage(
-              arguments: arguments,
-            ),
+            child: OnboardingPage(arguments: arguments),
             transitionsBuilder: (
               context,
               animation,
@@ -55,58 +54,104 @@ class AppRouter {
           );
         },
       ),
-
       GoRoute(
         path: RouteNames.register,
+        redirect: (context, state) {
+          return state.extra is AuthArguments
+              ? null
+              : RouteNames.onboarding;
+        },
         builder: (context, state) {
-          final arguments = state.extra as AuthArguments;
-
           return RegisterPage(
-            arguments: arguments,
+            arguments: state.extra as AuthArguments,
           );
         },
       ),
-
       GoRoute(
         path: RouteNames.login,
+        redirect: (context, state) {
+          return state.extra is AuthArguments
+              ? null
+              : RouteNames.onboarding;
+        },
         builder: (context, state) {
-          final arguments = state.extra as AuthArguments;
-
-          if (arguments.accountType == AccountType.elder) {
-            return ElderLoginPage(
-              arguments: arguments,
-            );
-          }
-
           return LoginPage(
-            arguments: arguments,
+            arguments: state.extra as AuthArguments,
           );
         },
       ),
-
       GoRoute(
-        path: RouteNames.familyLink,
-              builder: (context, state) => const FamilyLinkPage(),
-      ),
-
-      GoRoute(
-        path: RouteNames.elderHome,
+        path: RouteNames.elderLogin,
+        redirect: (context, state) {
+          return state.extra is AuthArguments
+              ? null
+              : RouteNames.onboarding;
+        },
         builder: (context, state) {
-          final elderData = state.extra as Map<String, dynamic>? ?? const {};
-          return ElderHomePage(
-            elderData: elderData,
+          return ElderLoginPage(
+            arguments: state.extra as AuthArguments,
           );
         },
       ),
-
-      GoRoute(
-        path: RouteNames.familyHome,
-        builder: (context, state) {
-          final elderName = state.extra is String
-              ? state.extra as String
-              : 'Maria Antônia';
-          return FamilyHomePage(elderName: elderName);
+      ShellRoute(
+        builder: (context, state, child) {
+          return MainNavigationShell(
+            location: state.uri.path,
+            child: child,
+          );
         },
+        routes: [
+          GoRoute(
+            path: RouteNames.familyLink,
+            builder: (context, state) => const FamilyLinkPage(),
+          ),
+          GoRoute(
+            path: RouteNames.elderHome,
+            builder: (context, state) => const ElderHomePage(),
+          ),
+          GoRoute(
+            path: RouteNames.caregiverHome,
+            builder: (context, state) {
+              final caregiverData = state.extra is Map<String, dynamic>
+                  ? state.extra! as Map<String, dynamic>
+                  : <String, dynamic>{};
+
+              return CaregiverHomePage(
+                caregiverData: caregiverData,
+              );
+            },
+          ),
+          GoRoute(
+            path: RouteNames.familyHome,
+            builder: (context, state) {
+              final elderName = state.extra is String
+                  ? state.extra! as String
+                  : 'Idoso';
+
+              return FamilyHomePage(elderName: elderName);
+            },
+          ),
+          GoRoute(
+            path: RouteNames.menu,
+            builder: (context, state) => const MenuPage(),
+          ),
+          GoRoute(
+            path: RouteNames.chat,
+            builder: (context, state) => const ChatPage(),
+          ),
+          GoRoute(
+            path: RouteNames.routine,
+            builder: (context, state) => const RoutinePage(),
+          ),
+          GoRoute(
+            path: RouteNames.profile,
+            builder: (context, state) => const ProfilePage(),
+          ),
+          GoRoute(
+            path: RouteNames.settings,
+            builder: (context, state) => const SettingsPage(),
+          ),
+        ],
       ),
     ],
   );

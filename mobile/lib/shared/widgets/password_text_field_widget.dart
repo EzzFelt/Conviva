@@ -9,6 +9,7 @@ class PasswordTextFieldWidget extends StatefulWidget {
     this.hintText = 'Senha',
     this.textInputAction,
     this.focusNode,
+    this.enabled = true,
     this.validator,
     this.onFieldSubmitted,
     this.autofillHints = const [AutofillHints.password],
@@ -18,6 +19,7 @@ class PasswordTextFieldWidget extends StatefulWidget {
   final String hintText;
   final TextInputAction? textInputAction;
   final FocusNode? focusNode;
+  final bool enabled;
   final FormFieldValidator<String>? validator;
   final ValueChanged<String>? onFieldSubmitted;
   final Iterable<String>? autofillHints;
@@ -47,6 +49,7 @@ class _PasswordTextFieldWidgetState
     return TextFormField(
       controller: widget.controller,
       focusNode: widget.focusNode,
+      enabled: widget.enabled,
       textInputAction: widget.textInputAction,
       validator: widget.validator,
       onFieldSubmitted: widget.onFieldSubmitted,
@@ -74,11 +77,13 @@ class _PasswordTextFieldWidgetState
         focusedErrorBorder: border(colorScheme.error, width: 1.5),
         suffixIcon: IconButton(
           tooltip: _obscureText ? 'Mostrar senha' : 'Ocultar senha',
-          onPressed: () {
-            setState(() {
-              _obscureText = !_obscureText;
-            });
-          },
+          onPressed: widget.enabled
+              ? () {
+                  setState(() {
+                    _obscureText = !_obscureText;
+                  });
+                }
+              : null,
           icon: Icon(
             _obscureText
                 ? Icons.visibility_off_outlined

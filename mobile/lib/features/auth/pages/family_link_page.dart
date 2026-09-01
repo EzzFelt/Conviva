@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../shared/widgets/button_widget.dart';
-import '../../../shared/widgets/main_navigation_bar.dart';
 
 class FamilyLinkPage extends StatefulWidget {
   const FamilyLinkPage({super.key});
@@ -17,7 +16,6 @@ class FamilyLinkPage extends StatefulWidget {
 }
 
 class _FamilyLinkPageState extends State<FamilyLinkPage> {
-  final _nameController = TextEditingController();
   final _elderCodeController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _receiveNotifications = true;
@@ -25,14 +23,8 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
 
   @override
   void dispose() {
-    _nameController.dispose();
     _elderCodeController.dispose();
     super.dispose();
-  }
-
-  String? _validateNotEmpty(String? value, String message) {
-    if ((value ?? '').trim().isEmpty) return message;
-    return null;
   }
 
   String? _validateElderCode(String? value) {
@@ -48,7 +40,6 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
 
     setState(() => _isSubmitting = true);
 
-    final name = _nameController.text.trim();
     final elderCode = _elderCodeController.text.trim().toUpperCase();
 
     try {
@@ -57,22 +48,10 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
         throw Exception('Usuário familiar não autenticado.');
       }
 
-      // Ensure the family user has an institution associated (must have been provided at registration)
-      final familyDoc = await FirebaseFirestore.instance.collection('users').doc(currentUser.uid).get();
-      if (!familyDoc.exists || familyDoc.data() == null) {
-        throw Exception('Perfil do familiar não encontrado.');
-      }
-
-      final familyData = familyDoc.data()!;
-      final familyInstitutionId = familyData['institutionId']?.toString();
-      if (familyInstitutionId == null || familyInstitutionId.isEmpty) {
-        throw Exception('O responsável não está vinculado a uma instituição válida.');
-      }
-
-      // Link by elder link code (ELD...)
-      await AuthService.instance.linkFamilyMemberToElder(
+      final elderData = await AuthService.instance.linkFamilyMemberToElder(
         familyUid: currentUser.uid,
         elderLinkCode: elderCode,
+        receiveNotifications: _receiveNotifications,
       );
 
       if (!mounted) return;
@@ -81,8 +60,10 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
         const SnackBar(content: Text('Idoso vinculado com sucesso!')),
       );
 
-      // Navigate to family home (pass elder name as extra)
-      context.go(RouteNames.familyHome, extra: name);
+      context.go(
+        RouteNames.familyHome,
+        extra: elderData['name']?.toString() ?? 'Idoso',
+      );
     } catch (error) {
       if (!mounted) return;
       final message = error is Exception ? error.toString().replaceFirst('Exception: ', '') : error.toString();
@@ -97,9 +78,10 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
+    final familyName = FirebaseAuth.instance.currentUser?.displayName?.trim();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF39B2D),
+      backgroundColor: context.appGradientColors.bottom,
       body: SafeArea(
         child: Column(
           children: [
@@ -118,7 +100,9 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
                     children: [
                       SizedBox(height: sizes.sm),
                       Text(
-                        'Olá, Enzo!',
+                        familyName == null || familyName.isEmpty
+                            ? 'Olá!'
+                            : 'Olá, $familyName!',
                         style: theme.textTheme.headlineLarge?.copyWith(
                           color: colorScheme.onPrimary,
                           fontWeight: FontWeight.w700,
@@ -126,41 +110,8 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
                       ),
                       SizedBox(height: sizes.lg),
 
-                      // Elder name
                       Text(
-                        'Qual é o nome do parente que seja vincular?',
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: colorScheme.onPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: sizes.lg),
-                      TextFormField(
-                        controller: _nameController,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: colorScheme.onSurface,
-                        ),
-                        validator: (v) => _validateNotEmpty(v, 'Informe o nome do parente.'),
-                        decoration: InputDecoration(
-                          hintText: 'Nome do parente',
-                          filled: true,
-                          fillColor: const Color(0xFFEAEAEA),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
-                          ),
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: sizes.lg,
-                            vertical: sizes.md,
-                          ),
-                        ),
-                      ),
-
-                      SizedBox(height: sizes.lg),
-
-                      // Elder id field
-                      Text(
-                        'Id do idoso (uid)',
+                        'Código de acesso do idoso',
                         style: theme.textTheme.headlineSmall?.copyWith(
                           color: colorScheme.onPrimary,
                           fontWeight: FontWeight.w600,
@@ -177,9 +128,11 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
                         decoration: InputDecoration(
                           hintText: 'ELD4321',
                           filled: true,
-                          fillColor: const Color(0xFFEAEAEA),
+                          fillColor: colorScheme.surfaceContainerHighest,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(30),
+                            borderRadius: BorderRadius.circular(
+                              sizes.radiusFull,
+                            ),
                             borderSide: BorderSide.none,
                           ),
                           contentPadding: EdgeInsets.symmetric(
@@ -202,8 +155,10 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
                         width: double.infinity,
                         padding: EdgeInsets.symmetric(horizontal: sizes.md),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFEAEAEA),
-                          borderRadius: BorderRadius.circular(30),
+                          color: colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(
+                            sizes.radiusFull,
+                          ),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<bool>(
@@ -245,11 +200,6 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
               ),
             ),
 
-            // bottom navigation bar
-            MainNavigationBar(
-              currentIndex: 0,
-              onDestinationSelected: (_) {},
-            ),
           ],
         ),
       ),

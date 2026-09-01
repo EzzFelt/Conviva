@@ -18,13 +18,6 @@ class OnboardingPage extends StatefulWidget {
   State<OnboardingPage> createState() => _OnboardingPageState();
 }
 
-class OnboardingPages {
-  static const intro = 0;
-  static const protection = 1;
-  static const welcome = 2;
-  static const accountType = 3;
-}
-
 class _OnboardingPageState extends State<OnboardingPage> {
   static const _pageTransitionDuration = Duration(milliseconds: 400);
 
@@ -63,7 +56,11 @@ class _OnboardingPageState extends State<OnboardingPage> {
       _currentPage = _validPage(widget.arguments.initialPage);
       _authMode = widget.arguments.authMode;
 
-      _pageController.jumpToPage(_currentPage);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _pageController.hasClients) {
+          _pageController.jumpToPage(_currentPage);
+        }
+      });
     }
   }
 
@@ -80,6 +77,18 @@ class _OnboardingPageState extends State<OnboardingPage> {
         curve: Curves.easeInOutCubic,
       );
     }
+  }
+
+  void _openAccountType(AuthMode mode) {
+    setState(() {
+      _authMode = mode;
+    });
+
+    _pageController.animateToPage(
+      OnboardingPages.accountType,
+      duration: _pageTransitionDuration,
+      curve: Curves.easeInOutCubic,
+    );
   }
 
   @override
@@ -101,7 +110,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
               indicatorCount: onboardingItems.length,
               item: onboardingItems[index],
               isLastOnboarding: index == onboardingItems.length - 1,
-              onContinue: _nextPage,
+              onContinue: index == onboardingItems.length - 1
+                  ? () => _openAccountType(AuthMode.register)
+                  : _nextPage,
+              onLogin: () => _openAccountType(AuthMode.login),
             );
           }
 

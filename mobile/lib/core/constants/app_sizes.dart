@@ -22,12 +22,14 @@ class AppSizesTheme extends ThemeExtension<AppSizesTheme> {
   const AppSizesTheme({
     this.spacingScale = 1,
     this.buttonScale = 1,
+    this.iconScale = 1,
   });
 
   static const standard = AppSizesTheme();
 
   final double spacingScale;
   final double buttonScale;
+  final double iconScale;
 
   double get xs => AppSizes.xs * spacingScale;
   double get sm => AppSizes.sm * spacingScale;
@@ -45,14 +47,18 @@ class AppSizesTheme extends ThemeExtension<AppSizesTheme> {
   double get buttonMedium => 50 * buttonScale;
   double get buttonLarge => 56 * buttonScale;
 
+  double icon(double baseSize) => baseSize * iconScale;
+
   @override
   AppSizesTheme copyWith({
     double? spacingScale,
     double? buttonScale,
+    double? iconScale,
   }) {
     return AppSizesTheme(
       spacingScale: spacingScale ?? this.spacingScale,
       buttonScale: buttonScale ?? this.buttonScale,
+      iconScale: iconScale ?? this.iconScale,
     );
   }
 
@@ -67,6 +73,7 @@ class AppSizesTheme extends ThemeExtension<AppSizesTheme> {
       spacingScale: spacingScale +
           (other.spacingScale - spacingScale) * t,
       buttonScale: buttonScale + (other.buttonScale - buttonScale) * t,
+      iconScale: iconScale + (other.iconScale - iconScale) * t,
     );
   }
 }

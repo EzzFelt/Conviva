@@ -52,15 +52,40 @@ class AppTextStyles {
     height: 1.20,
   );
 
-  static TextTheme textTheme(Color textColor) {
+  static TextTheme textTheme(
+    Color textColor, {
+    FontWeight titleWeight = FontWeight.w600,
+    FontWeight bodyWeight = FontWeight.w400,
+  }) {
     return TextTheme(
-      headlineLarge: pageTitle.copyWith(color: textColor),
-      headlineSmall: actionCardTitle.copyWith(color: textColor),
-      titleLarge: sectionTitle.copyWith(color: textColor),
-      titleMedium: bodyEmphasis.copyWith(color: textColor),
-      bodyLarge: body.copyWith(color: textColor),
-      bodyMedium: body.copyWith(color: textColor),
-      bodySmall: caption.copyWith(color: textColor),
+      headlineLarge: pageTitle.copyWith(
+        color: textColor,
+        fontWeight: titleWeight,
+      ),
+      headlineSmall: actionCardTitle.copyWith(
+        color: textColor,
+        fontWeight: titleWeight,
+      ),
+      titleLarge: sectionTitle.copyWith(
+        color: textColor,
+        fontWeight: titleWeight,
+      ),
+      titleMedium: bodyEmphasis.copyWith(
+        color: textColor,
+        fontWeight: titleWeight,
+      ),
+      bodyLarge: body.copyWith(
+        color: textColor,
+        fontWeight: bodyWeight,
+      ),
+      bodyMedium: body.copyWith(
+        color: textColor,
+        fontWeight: bodyWeight,
+      ),
+      bodySmall: caption.copyWith(
+        color: textColor,
+        fontWeight: bodyWeight,
+      ),
       labelLarge: button.copyWith(color: textColor),
     );
   }

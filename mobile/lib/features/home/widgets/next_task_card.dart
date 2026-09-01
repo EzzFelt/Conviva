@@ -1,58 +1,47 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_sizes.dart';
-
-enum NextTaskType {
-  breakfast,
-  medication,
-  lunch,
-  walk,
-}
+import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_sizes.dart';
+import '../../routine/models/routine_task.dart';
 
 class NextTaskCard extends StatelessWidget {
   const NextTaskCard({
     super.key,
-    required this.taskType,
+    required this.task,
     this.sectionTitle = 'Sua próxima tarefa:',
+    this.emptyMessage = 'Nenhuma tarefa no momento',
+    this.isLoading = false,
     this.onPressed,
   });
 
-  final NextTaskType taskType;
+  final RoutineTask? task;
   final String sectionTitle;
+  final String emptyMessage;
+  final bool isLoading;
   final VoidCallback? onPressed;
+
+  IconData _taskIcon() {
+    return switch (task?.type) {
+      RoutineTaskType.breakfast => Icons.breakfast_dining_rounded,
+      RoutineTaskType.medication => Icons.medication_rounded,
+      RoutineTaskType.meal => Icons.restaurant_rounded,
+      RoutineTaskType.exercise => Icons.directions_walk_rounded,
+      RoutineTaskType.leisure => Icons.interests_rounded,
+      RoutineTaskType.appointment => Icons.medical_services_rounded,
+      RoutineTaskType.other => Icons.event_available_rounded,
+      null => Icons.event_available_rounded,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
-    final taskContent = switch (taskType) {
-      NextTaskType.breakfast => (
-          icon: Icons.breakfast_dining_rounded,
-          title: 'Café da manhã',
-          time: '7:00 - 7:40',
-        ),
-      NextTaskType.medication => (
-          icon: Icons.medication_rounded,
-          title: 'Tomar remédio',
-          time: '9:00 - 9:10',
-        ),
-      NextTaskType.lunch => (
-          icon: Icons.lunch_dining_rounded,
-          title: 'Almoço',
-          time: '12:00 - 12:40',
-        ),
-      NextTaskType.walk => (
-          icon: Icons.directions_walk_rounded,
-          title: 'Caminhada',
-          time: '16:00 - 16:30',
-        ),
-    };
-
     final cardRadius = BorderRadius.circular(
       sizes.radiusMd + sizes.xs,
     );
+    final taskTitle = task?.title ?? emptyMessage;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,89 +55,112 @@ class NextTaskCard extends StatelessWidget {
         ),
         SizedBox(height: sizes.lg),
         Padding(
-          padding: EdgeInsets.only(bottom: sizes.md),
+          padding: EdgeInsets.only(
+            bottom: task == null ? 0 : sizes.md,
+          ),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Material(
-                color: context.appGradientColors.bottom,
-                elevation: sizes.xs / 2,
-                shadowColor: colorScheme.shadow.withValues(alpha: .24),
-                shape: RoundedRectangleBorder(
-                  borderRadius: cardRadius,
-                  side: BorderSide(
-                    color: colorScheme.primary.withValues(alpha: .32),
+              SizedBox(
+                width: double.infinity,
+                child: Material(
+                  color: context.appGradientColors.bottom,
+                  elevation: sizes.xs / 2,
+                  shadowColor: colorScheme.shadow.withValues(alpha: .24),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: cardRadius,
+                    side: BorderSide(
+                      color: colorScheme.primary.withValues(alpha: .32),
+                    ),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onPressed,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: sizes.xxl * 2 + sizes.md,
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: sizes.lg,
+                          vertical: sizes.lg,
+                        ),
+                        child: isLoading
+                            ? Center(
+                                child: SizedBox.square(
+                                  dimension: sizes.xl,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: sizes.xs / 2,
+                                    color: colorScheme.onPrimary,
+                                  ),
+                                ),
+                              )
+                            : LayoutBuilder(
+                                builder: (context, constraints) {
+                                  return Center(
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          _taskIcon(),
+                                          size: sizes.xxl + sizes.md,
+                                          color: colorScheme.onPrimary,
+                                        ),
+                                        SizedBox(width: sizes.lg),
+                                        SizedBox(
+                                          width: constraints.maxWidth * .48,
+                                          child: Text(
+                                            taskTitle,
+                                            textAlign: TextAlign.center,
+                                            style: theme
+                                                .textTheme.headlineSmall
+                                                ?.copyWith(
+                                              color: colorScheme.onPrimary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ),
                   ),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: onPressed,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: sizes.xxl * 2 + sizes.md,
+              ),
+              if (task != null)
+                Positioned(
+                  right: sizes.sm,
+                  bottom: -sizes.md,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      borderRadius: BorderRadius.circular(
+                        sizes.radiusFull,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.shadow.withValues(alpha: .24),
+                          blurRadius: sizes.xs,
+                          offset: Offset(0, sizes.xs / 2),
+                        ),
+                      ],
                     ),
                     child: Padding(
-                      padding: EdgeInsets.only(
-                        left: sizes.xl,
-                        right: sizes.xl,
-                        top: sizes.lg,
-                        bottom: sizes.lg,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: sizes.md,
+                        vertical: sizes.sm,
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            taskContent.icon,
-                            size: sizes.xxl + sizes.md,
-                            color: colorScheme.onPrimary,
-                          ),
-                          Container(
-                            width: sizes.xs,
-                            margin: EdgeInsets.only(left: sizes.xl),
-                            ),
-                          Expanded( 
-                              child: Text(
-                                taskContent.title,
-                                textAlign: TextAlign.left,
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  color: colorScheme.onPrimary,
-                                ),
-                              ),
-                            ),
-                        ],
+                      child: Text(
+                        task!.timeLabel,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: colorScheme.onPrimary,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                right: sizes.sm,
-                bottom: -sizes.md,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
-                    borderRadius: BorderRadius.circular(sizes.radiusFull),
-                    boxShadow: [
-                      BoxShadow(
-                        color: colorScheme.shadow.withValues(alpha: .24),
-                        blurRadius: sizes.xs,
-                        offset: Offset(0, sizes.xs / 2),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: sizes.md,
-                      vertical: sizes.sm,
-                    ),
-                    child: Text(
-                      taskContent.time,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: colorScheme.onPrimary,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             ],
           ),
         ),

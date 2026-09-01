@@ -1,28 +1,30 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../core/services/auth_service.dart';
 
+import '../../../shared/formatters/brazilian_phone_formatter.dart';
 import '../../../shared/widgets/back_button_widget.dart';
 import '../../../shared/widgets/button_widget.dart';
 import '../../../shared/widgets/password_text_field_widget.dart';
 import '../../../shared/widgets/text_field_widget.dart';
 
 import '../../onboarding/models/onboarding_arguments.dart';
-import '../../onboarding/pages/onboarding_page.dart';
 
 import '../models/account_type.dart';
-import '../models/account_type_extensions.dart';
 import '../models/auth_arguments.dart';
 import '../models/auth_mode.dart';
+import '../providers/authenticated_user_navigator.dart';
+import '../providers/current_user_provider.dart';
 
 import '../widgets/auth_footer_widget.dart';
 import '../widgets/auth_header_widget.dart';
 
-class RegisterPage extends StatefulWidget {
+class RegisterPage extends ConsumerStatefulWidget {
   final AuthArguments arguments;
 
   const RegisterPage({
@@ -31,16 +33,17 @@ class RegisterPage extends StatefulWidget {
   });
 
   @override
-  State<RegisterPage> createState() => _RegisterPageState();
+  ConsumerState<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _institutionController = TextEditingController();
   final _passwordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -53,40 +56,45 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _register() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    if (!(_formKey.currentState?.validate() ?? false) || _isLoading) {
       return;
     }
 
     final accountType = widget.arguments.accountType;
 
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      await AuthRegister().register(
+      final result = await ref.read(currentUserProvider.notifier).register(
         name: _nameController.text,
-        email: accountType == AccountType.elder ? null : _emailController.text,
+        email: accountType == AccountType.elder
+            ? null
+            : _emailController.text,
         phone: _phoneController.text,
-        institutionCode: accountType.hasInstitution
-            ? _institutionController.text
-            : null,
+        institutionCode: _institutionController.text,
         password: _passwordController.text,
-        pin: null,
-        accountType: accountType == AccountType.elder ? 'idoso' : accountType.name,
+        accountType: accountType,
       );
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cadastro realizado com Sucesso'),
-        ),
-      );
+      if (result.elderAccessCode != null) {
+        await _showElderAccessCode(result.elderAccessCode!);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cadastro realizado com sucesso.'),
+          ),
+        );
+      }
 
-      context.go(
-        RouteNames.login,
-        extra: AuthArguments(
-          accountType: accountType,
-          authMode: AuthMode.login,
-        ),
-      );
+      if (!mounted) return;
+
+      await AuthenticatedUserNavigator.open(context, result.session);
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
@@ -119,7 +127,45 @@ class _RegisterPageState extends State<RegisterPage> {
           ),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  Future<void> _showElderAccessCode(String code) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Código de acesso do idoso'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Guarde este código. Ele será usado para entrar na conta '
+                'e para o familiar realizar o vínculo.',
+              ),
+              SizedBox(height: dialogContext.appSizes.md),
+              SelectableText(
+                code,
+                style: Theme.of(dialogContext).textTheme.headlineSmall,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Entendi'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String? _validateRequired(String? value, String message) {
@@ -137,7 +183,7 @@ class _RegisterPageState extends State<RegisterPage> {
       return 'Informe o e-mail';
     }
 
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     if (!emailRegex.hasMatch(email)) {
       return 'Informe um e-mail válido';
     }
@@ -146,14 +192,28 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   String? _validatePhone(String? value) {
-    final phone = value?.replaceAll(RegExp(r'\D'), '') ?? '';
+    final phone = AuthRegister.normalizePhone(value ?? '');
 
     if (phone.isEmpty) {
       return 'Informe o número de telefone';
     }
 
-    if (phone.length < 10) {
+    if (phone.length < 10 || phone.length > 11) {
       return 'Informe um número de telefone válido';
+    }
+
+    return null;
+  }
+
+  String? _validatePassword(String? value) {
+    final password = value?.trim() ?? '';
+
+    if (password.isEmpty) {
+      return 'Informe a senha';
+    }
+
+    if (password.length < 6) {
+      return 'A senha deve ter pelo menos 6 caracteres';
     }
 
     return null;
@@ -202,6 +262,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   TextFieldWidget(
                     controller: _nameController,
                     hintText: 'Nome completo',
+                    enabled: !_isLoading,
                     keyboardType: TextInputType.name,
                     textInputAction: TextInputAction.next,
                     validator: (value) => _validateRequired(
@@ -217,6 +278,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     TextFieldWidget(
                       controller: _emailController,
                       hintText: 'E-mail',
+                      enabled: !_isLoading,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       validator: _validateEmail,
@@ -229,43 +291,34 @@ class _RegisterPageState extends State<RegisterPage> {
                   TextFieldWidget(
                     controller: _phoneController,
                     hintText: 'Número de telefone',
+                    enabled: !_isLoading,
                     keyboardType: TextInputType.phone,
-                    textInputAction: accountType.hasPassword ||
-                            accountType.hasInstitution ||
-                            accountType == AccountType.elder
-                        ? TextInputAction.next
-                        : TextInputAction.done,
+                    inputFormatters: const [BrazilianPhoneFormatter()],
+                    textInputAction: TextInputAction.next,
                     validator: _validatePhone,
-                    onFieldSubmitted:
-                        accountType.hasPassword || accountType.hasInstitution || accountType == AccountType.elder
-                            ? null
-                            : (_) => _register(),
                     autofillHints: const [AutofillHints.telephoneNumber],
                   ),
 
-                  if (accountType.hasInstitution) ...[
-                    SizedBox(height: sizes.md),
-                    TextFieldWidget(
-                      controller: _institutionController,
-                      hintText: accountType == AccountType.elder
-                          ? 'Código da instituição'
-                          : 'Instituição (Código)',
-                      textInputAction: TextInputAction.next,
-                      validator: (value) => _validateRequired(
-                        value,
-                        'Informe o código da instituição',
-                      ),
+                  SizedBox(height: sizes.md),
+                  TextFieldWidget(
+                    controller: _institutionController,
+                    hintText: accountType == AccountType.elder
+                        ? 'Código da instituição'
+                        : 'Instituição (Código)',
+                    enabled: !_isLoading,
+                    textInputAction: TextInputAction.next,
+                    validator: (value) => _validateRequired(
+                      value,
+                      'Informe o código da instituição',
                     ),
-                  ],
+                  ),
 
                   SizedBox(height: sizes.md),
                   PasswordTextFieldWidget(
                     controller: _passwordController,
+                    enabled: !_isLoading,
                     textInputAction: TextInputAction.done,
-                    validator: (value) => _validateRequired(
-                      value,
-                      'Informe a senha',
-                    ),
+                    validator: _validatePassword,
                     onFieldSubmitted: (_) => _register(),
                     autofillHints: const [AutofillHints.newPassword],
                   ),
@@ -273,9 +326,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   SizedBox(height: sizes.xl),
 
                   ButtonWidget(
-                    label: 'Cadastrar',
+                    label: _isLoading ? 'Cadastrando...' : 'Cadastrar',
                     variant: ButtonVariant.primary,
-                    onPressed: _register,
+                    onPressed: _isLoading ? null : _register,
                   ),
 
                   SizedBox(height: sizes.lg),
@@ -285,7 +338,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     actionText: 'Entrar',
                     onTap: () {
                       context.go(
-                        RouteNames.login,
+                        accountType == AccountType.elder
+                            ? RouteNames.elderLogin
+                            : RouteNames.login,
                         extra: AuthArguments(
                           accountType: accountType,
                           authMode: AuthMode.login,

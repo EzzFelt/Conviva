@@ -58,7 +58,7 @@ class GotoButtonWidget extends StatelessWidget {
               dimension: visualSize,
               child: Icon(
                 Icons.arrow_forward_ios,
-                size: _iconSize(sizes),
+                size: sizes.icon(_iconSize(sizes)),
                 color: colorScheme.onPrimary,
               ),
             ),

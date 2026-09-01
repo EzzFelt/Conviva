@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../shared/widgets/info_card_widget.dart';
-import '../../../shared/widgets/main_navigation_bar.dart';
 
 class FamilyHomePage extends StatelessWidget {
   const FamilyHomePage({
@@ -214,10 +213,6 @@ class FamilyHomePage extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-              MainNavigationBar(
-                currentIndex: 0,
-                onDestinationSelected: (_) {},
               ),
             ],
           ),

@@ -2,46 +2,42 @@ import 'package:conviva/core/services/auth_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('AuthService elder password matching', () {
-    test('returns the unique elder whose password hash matches the entered password', () {
-      final elderUsers = [
-        {'id': 'elder-1', 'passwordHash': AuthRegister.hashPassword('1234')},
-        {'id': 'elder-2', 'passwordHash': AuthRegister.hashPassword('9999')},
-      ];
+  group('AuthRegister phone normalization', () {
+    test('removes the Brazilian phone mask before saving', () {
+      final result = AuthRegister.normalizePhone('(11) 99999-8888');
 
-      final result = AuthService.findMatchingElderUser(
-        elderUsers: elderUsers,
-        password: '1234',
-      );
-
-      expect(result, 'elder-1');
+      expect(result, '11999998888');
     });
 
-    test('throws when more than one elder shares the same password hash', () {
-      final elderUsers = [
-        {'id': 'elder-1', 'passwordHash': AuthRegister.hashPassword('1111')},
-        {'id': 'elder-2', 'passwordHash': AuthRegister.hashPassword('1111')},
-      ];
+    test('keeps a phone that already contains only digits', () {
+      final result = AuthRegister.normalizePhone('1133334444');
 
-      expect(
-        () => AuthService.findMatchingElderUser(
-          elderUsers: elderUsers,
-          password: '1111',
-        ),
-        throwsA(isA<StateError>()),
-      );
+      expect(result, '1133334444');
+    });
+  });
+
+  group('AuthRegister elder access code', () {
+    test('normalizes the elder code', () {
+      final result = AuthRegister.normalizeElderCode(' eld-ab12 ');
+
+      expect(result, 'ELDAB12');
     });
 
-    test('throws when no elder in the institution matches the entered password', () {
-      final elderUsers = [
-        {'id': 'elder-1', 'passwordHash': AuthRegister.hashPassword('4567')},
-      ];
+    test('generates a deterministic code from a seed', () {
+      final result = AuthRegister.generateElderLinkCode('abc-123');
 
+      expect(result, 'ELD00ABC123');
+    });
+
+    test('converts a valid elder code to its internal authentication email', () {
+      final result = AuthRegister.elderAuthEmail('eld-ab12');
+
+      expect(result, 'eldab12@elder.conviva.app');
+    });
+
+    test('throws when the elder code is invalid', () {
       expect(
-        () => AuthService.findMatchingElderUser(
-          elderUsers: elderUsers,
-          password: '1234',
-        ),
+        () => AuthRegister.elderAuthEmail('1234'),
         throwsA(isA<Exception>()),
       );
     });

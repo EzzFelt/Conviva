@@ -18,6 +18,20 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
     );
   }
 
+  void setTitleFontWeight(FontWeight value) {
+    state = state.copyWith(titleFontWeight: value);
+  }
+
+  void setBodyFontWeight(FontWeight value) {
+    state = state.copyWith(bodyFontWeight: value);
+  }
+
+  void setIconScale(double value) {
+    state = state.copyWith(
+      iconScale: value.clamp(0.85, 1.40).toDouble(),
+    );
+  }
+
   void setButtonScale(double value) {
     state = state.copyWith(
       buttonScale: value.clamp(0.90, 1.30).toDouble(),
@@ -27,6 +41,26 @@ class AppSettingsNotifier extends Notifier<AppSettings> {
   void setSpacingScale(double value) {
     state = state.copyWith(
       spacingScale: value.clamp(0.90, 1.20).toDouble(),
+    );
+  }
+
+  void setVolume(double value) {
+    state = state.copyWith(
+      volume: value.clamp(0, 1).toDouble(),
+    );
+  }
+
+  void setMessageNotifications(bool value) {
+    state = state.copyWith(messageNotifications: value);
+  }
+
+  void setReminderNotifications(bool value) {
+    state = state.copyWith(reminderNotifications: value);
+  }
+
+  void setColorIntensity(double value) {
+    state = state.copyWith(
+      colorIntensity: value.clamp(.5, 1).toDouble(),
     );
   }
 

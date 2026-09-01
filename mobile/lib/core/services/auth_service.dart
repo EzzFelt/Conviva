@@ -1,25 +1,46 @@
-import 'dart:convert';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthRegister {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static String hashPassword(String password) {
-    return sha256.convert(utf8.encode(password.trim())).toString();
+  static String normalizePhone(String phone) {
+    return phone.replaceAll(RegExp(r'\D'), '');
   }
 
-  static String generateElderLinkCode(String elderId) {
-    final cleaned = elderId.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  static String normalizeElderCode(String elderCode) {
+    return elderCode
+        .trim()
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-Z0-9]'), '');
+  }
+
+  static String generateElderLinkCode(String seed) {
+    final cleaned = seed
+        .trim()
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
     if (cleaned.isEmpty) {
-      return 'ELD${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
+      throw ArgumentError('Não foi possível gerar o código do idoso.');
     }
 
-    final code = cleaned.length > 6 ? cleaned.substring(0, 6) : cleaned.padLeft(6, '0');
-    return 'ELD$code';
+    final suffix = cleaned.length > 8
+        ? cleaned.substring(0, 8)
+        : cleaned.padLeft(8, '0');
+
+    return 'ELD$suffix';
+  }
+
+  static String elderAuthEmail(String elderCode) {
+    final normalizedCode = normalizeElderCode(elderCode);
+
+    if (!RegExp(r'^ELD[A-Z0-9]{4,}$').hasMatch(normalizedCode)) {
+      throw Exception('Informe um código de acesso válido.');
+    }
+
+    return '${normalizedCode.toLowerCase()}@elder.conviva.app';
   }
 
   Future<String> resolveInstitutionId(String institutionCode) async {
@@ -28,7 +49,11 @@ class AuthRegister {
       throw Exception('Informe o código da instituição.');
     }
 
-    final institutionDoc = await _firestore.collection('institutions').doc(normalizedCode).get();
+    final institutionDoc = await _firestore
+        .collection('institutions')
+        .doc(normalizedCode)
+        .get();
+
     if (institutionDoc.exists) {
       return institutionDoc.id;
     }
@@ -40,92 +65,184 @@ class AuthRegister {
         .get();
 
     if (institutionQuery.docs.isEmpty) {
-      throw Exception('Código da instituição inválido');
+      throw Exception('Código da instituição inválido.');
     }
 
     return institutionQuery.docs.first.id;
   }
 
-  Future<void> register({
+  Future<String?> register({
     required String name,
     String? email,
     required String phone,
     String? institutionCode,
     String? password,
     required String accountType,
-    String? pin,
   }) async {
     final normalizedType = accountType.trim();
+    final normalizedName = name.trim();
+    final normalizedPhone = normalizePhone(phone);
+    final normalizedPassword = password?.trim() ?? '';
+
+    if (!{'idoso', 'caregiver', 'family'}.contains(normalizedType)) {
+      throw Exception('Tipo de conta inválido.');
+    }
+
+    if (normalizedName.isEmpty) {
+      throw Exception('Informe o nome completo.');
+    }
+
+    if (normalizedPhone.isEmpty) {
+      throw Exception('Informe o número de telefone.');
+    }
+
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+      throw Exception('Informe um número de telefone válido.');
+    }
+
+    if (normalizedPassword.isEmpty) {
+      throw Exception('Informe a senha.');
+    }
+
+    if (institutionCode == null || institutionCode.trim().isEmpty) {
+      throw Exception('Informe o código da instituição.');
+    }
+
+    final institutionId = await resolveInstitutionId(institutionCode);
 
     if (normalizedType == 'idoso') {
-      if (institutionCode == null || institutionCode.trim().isEmpty) {
-        throw Exception('Informe o código da instituição do idoso.');
-      }
+      return _registerElder(
+        name: normalizedName,
+        phone: normalizedPhone,
+        password: normalizedPassword,
+        institutionId: institutionId,
+      );
+    }
 
-      if (password == null || password.trim().isEmpty) {
-        throw Exception('Senha obrigatória para o idoso.');
-      }
+    if (email == null || email.trim().isEmpty) {
+      throw Exception('Informe o e-mail.');
+    }
 
-      final institutionId = await resolveInstitutionId(institutionCode);
-      final elderDocRef = _firestore.collection('users').doc();
-      final elderLinkCode = generateElderLinkCode(elderDocRef.id);
+    await _registerEmailUser(
+      name: normalizedName,
+      email: email.trim().toLowerCase(),
+      phone: normalizedPhone,
+      password: normalizedPassword,
+      accountType: normalizedType,
+      institutionId: institutionId,
+    );
 
-      await elderDocRef.set({
+    return null;
+  }
+
+  Future<String> _registerElder({
+    required String name,
+    required String phone,
+    required String password,
+    required String institutionId,
+  }) async {
+    final codeSeed = _firestore.collection('users').doc().id;
+    final elderLinkCode = generateElderLinkCode(codeSeed);
+    final authEmail = elderAuthEmail(elderLinkCode);
+
+    final credential = await _auth.createUserWithEmailAndPassword(
+      email: authEmail,
+      password: password,
+    );
+
+    final user = credential.user;
+    if (user == null) {
+      throw Exception('Falha ao criar o acesso do idoso.');
+    }
+
+    try {
+      await user.updateDisplayName(name.trim());
+      await _firestore.collection('users').doc(user.uid).set({
         'name': name.trim(),
         'elderLinkCode': elderLinkCode,
-        'phone': phone.trim(),
-        'passwordHash': hashPassword(password),
+        'phone': phone,
         'type': 'idoso',
         'institutionId': institutionId,
         'status': 'active',
         'createdAt': FieldValue.serverTimestamp(),
       });
+    } on FirebaseException catch (error) {
+      await _deleteCreatedUser(user);
 
-      return;
-    }
-
-    if (email == null || email.trim().isEmpty) {
-      throw Exception('E-mail obrigatório para este tipo de cadastro.');
-    }
-
-    if (password == null || password.trim().isEmpty) {
-      throw Exception('Senha obrigatória para este tipo de cadastro.');
-    }
-
-    String? institutionId;
-
-    if (normalizedType == 'caregiver' || normalizedType == 'family') {
-      if (institutionCode == null || institutionCode.trim().isEmpty) {
-        throw Exception('Código da instituição inválido');
+      if (error.code == 'permission-denied') {
+        throw Exception(
+          'O Firestore recusou a criação do perfil do idoso. '
+          'Verifique se as regras publicadas aceitam elderLinkCode.',
+        );
       }
 
-      institutionId = await resolveInstitutionId(institutionCode);
+      rethrow;
+    } catch (_) {
+      await _deleteCreatedUser(user);
+      rethrow;
     }
 
-    final userCredential = await _auth.createUserWithEmailAndPassword(
-      email: email.trim(),
-      password: password.trim(),
+    return elderLinkCode;
+  }
+
+  Future<void> _registerEmailUser({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+    required String accountType,
+    required String institutionId,
+  }) async {
+    final credential = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
     );
 
-    final user = userCredential.user;
+    final user = credential.user;
     if (user == null) {
-      throw Exception('Falha ao criar usuário');
+      throw Exception('Falha ao criar usuário.');
     }
 
-    final userData = {
-      'name': name.trim(),
-      'email': email.trim(),
-      'phone': phone.trim(),
-      'type': normalizedType,
-      'status': 'active',
-      'createdAt': FieldValue.serverTimestamp(),
-    };
+    try {
+      await user.updateDisplayName(name.trim());
+      await _firestore.collection('users').doc(user.uid).set({
+        'name': name.trim(),
+        'email': email,
+        'phone': phone,
+        'type': accountType,
+        'institutionId': institutionId,
+        'status': 'active',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (error) {
+      await _deleteCreatedUser(user);
 
-    if (institutionId != null) {
-      userData['institutionId'] = institutionId;
+      if (error.code == 'permission-denied') {
+        throw Exception(
+          'O Firestore recusou a criação do perfil. '
+          'Verifique as regras publicadas.',
+        );
+      }
+
+      rethrow;
+    } catch (_) {
+      await _deleteCreatedUser(user);
+      rethrow;
     }
+  }
 
-    await _firestore.collection('users').doc(user.uid).set(userData);
+  Future<void> _deleteCreatedUser(User user) async {
+    try {
+      await user.delete();
+    } catch (_) {
+      // A falha original do cadastro deve continuar sendo exibida.
+    } finally {
+      try {
+        await _auth.signOut();
+      } catch (_) {
+        // A limpeza não deve esconder a causa original do cadastro.
+      }
+    }
   }
 }
 
@@ -137,146 +254,110 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static String findMatchingElderUser({
-    required List<Map<String, dynamic>> elderUsers,
-    required String password,
-  }) {
-    final enteredHash = AuthRegister.hashPassword(password);
-    final matches = elderUsers.where((user) {
-      final storedHash = user['passwordHash']?.toString() ?? '';
-      return storedHash.isNotEmpty && storedHash == enteredHash;
-    }).toList();
+  String? get currentUserId => _auth.currentUser?.uid;
 
-    if (matches.isEmpty) {
-      throw Exception('Senha incorreta para esta instituição.');
-    }
-
-    if (matches.length > 1) {
-      throw StateError(
-        'Mais de um idoso foi identificado com a mesma senha dentro da instituição.',
-      );
-    }
-
-    final matchedId = matches.first['id']?.toString();
-    if (matchedId == null || matchedId.isEmpty) {
-      throw Exception('Não foi possível identificar o idoso autenticado.');
-    }
-
-    return matchedId;
-  }
-
-  Future<String> _resolveInstitutionId(String institutionCode) async {
-    final normalizedCode = institutionCode.trim();
-    if (normalizedCode.isEmpty) {
-      throw Exception('Informe o código da instituição.');
-    }
-
-    final directDoc = await _firestore.collection('institutions').doc(normalizedCode).get();
-    if (directDoc.exists) {
-      return directDoc.id;
-    }
-
-    final query = await _firestore
-        .collection('institutions')
-        .where('code', isEqualTo: normalizedCode)
-        .limit(1)
-        .get();
-
-    if (query.docs.isEmpty) {
-      throw Exception('Instituição inválida ou não encontrada.');
-    }
-
-    return query.docs.first.id;
-  }
-
-  Future<DocumentSnapshot<Map<String, dynamic>>> loginWithPhoneAndPassword({
-    required String phone,
+  Future<DocumentSnapshot<Map<String, dynamic>>> loginWithEmailAndPassword({
+    required String email,
     required String password,
     required String accountType,
   }) async {
-    final normalizedPhone = phone.replaceAll(RegExp(r'\D'), '');
-    if (normalizedPhone.isEmpty) {
-      throw Exception('Informe o número de telefone.');
-    }
-
-    final query = await _firestore
-        .collection('users')
-        .where('phone', isEqualTo: normalizedPhone)
-        .where('type', isEqualTo: accountType)
-        .limit(1)
-        .get();
-
-    if (query.docs.isEmpty) {
-      throw Exception('Usuário não encontrado.');
-    }
-
-    final data = query.docs.first.data();
-    final email = data['email']?.toString();
-    if (email == null || email.isEmpty) {
-      throw Exception('Usuário sem e-mail de acesso válido.');
-    }
-
     final credential = await _auth.signInWithEmailAndPassword(
-      email: email,
+      email: email.trim().toLowerCase(),
       password: password.trim(),
     );
 
+    try {
+      return await _validatedUserDocument(
+        credential: credential,
+        expectedAccountType: accountType,
+      );
+    } catch (_) {
+      await _auth.signOut();
+      rethrow;
+    }
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> loginElderWithCodeAndPassword({
+    required String elderCode,
+    required String password,
+  }) {
+    return loginWithEmailAndPassword(
+      email: AuthRegister.elderAuthEmail(elderCode),
+      password: password,
+      accountType: 'idoso',
+    );
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> _validatedUserDocument({
+    required UserCredential credential,
+    required String expectedAccountType,
+  }) async {
     final uid = credential.user?.uid;
     if (uid == null) {
       throw Exception('Falha ao autenticar o usuário.');
     }
 
     final userDoc = await _firestore.collection('users').doc(uid).get();
-    if (!userDoc.exists || userDoc.data() == null) {
+    final userData = userDoc.data();
+
+    if (!userDoc.exists || userData == null) {
       throw Exception('Perfil do usuário não encontrado.');
     }
 
-    if (userDoc.data()!['type'] != accountType) {
+    if (userData['type']?.toString() != expectedAccountType) {
       throw Exception('Tipo de conta inválido para este login.');
+    }
+
+    if (userData['status']?.toString() != 'active') {
+      throw Exception('Esta conta não está ativa.');
     }
 
     return userDoc;
   }
 
-  Future<DocumentSnapshot<Map<String, dynamic>>> loginWithInstitutionAndPassword({
-    required String institutionId,
-    required String password,
-  }) async {
-    final resolvedInstitutionId = await _resolveInstitutionId(institutionId);
-
-    final elderQuery = await _firestore
-        .collection('users')
-        .where('institutionId', isEqualTo: resolvedInstitutionId)
-        .where('type', isEqualTo: 'idoso')
+  Future<Map<String, dynamic>?> getActiveLinkedElderForFamily(
+    String familyUid,
+  ) async {
+    final activeLink = await _firestore
+        .collection('familyLinks')
+        .where('familiarId', isEqualTo: familyUid)
+        .where('status', isEqualTo: 'active')
+        .limit(1)
         .get();
 
-    if (elderQuery.docs.isEmpty) {
-      throw Exception('Instituição inválida ou não encontrada.');
+    if (activeLink.docs.isEmpty) {
+      return null;
     }
 
-    final elderUsers = elderQuery.docs
-        .map((doc) => {'id': doc.id, ...doc.data()})
-        .toList();
+    final elderId = activeLink.docs.first.data()['elderId']?.toString();
+    if (elderId == null || elderId.isEmpty) {
+      return null;
+    }
 
-    final matchedElderId = findMatchingElderUser(
-      elderUsers: elderUsers,
-      password: password,
-    );
+    final elderDoc = await _firestore.collection('users').doc(elderId).get();
+    final elderData = elderDoc.data();
 
-    final matchedDoc = elderQuery.docs.firstWhere(
-      (doc) => doc.id == matchedElderId,
-      orElse: () => throw Exception('Usuário idoso não encontrado.'),
-    );
+    if (!elderDoc.exists ||
+        elderData == null ||
+        elderData['type']?.toString() != 'idoso') {
+      return null;
+    }
 
-    return matchedDoc;
+    return {
+      'id': elderDoc.id,
+      ...elderData,
+    };
   }
 
-  Future<void> linkFamilyMemberToElder({
+  Future<Map<String, dynamic>> linkFamilyMemberToElder({
     required String familyUid,
     required String elderLinkCode,
+    required bool receiveNotifications,
   }) async {
     final normalizedFamilyUid = familyUid.trim();
-    final normalizedElderLinkCode = elderLinkCode.trim().toUpperCase();
+    final normalizedElderLinkCode = AuthRegister.normalizeElderCode(
+      elderLinkCode,
+    );
 
     if (normalizedFamilyUid.isEmpty) {
       throw Exception('Usuário familiar não identificado.');
@@ -286,21 +367,28 @@ class AuthService {
       throw Exception('Informe o código do idoso.');
     }
 
-    final familyDoc = await _firestore.collection('users').doc(normalizedFamilyUid).get();
-    if (!familyDoc.exists || familyDoc.data() == null) {
+    final familyDoc = await _firestore
+        .collection('users')
+        .doc(normalizedFamilyUid)
+        .get();
+    final familyData = familyDoc.data();
+
+    if (!familyDoc.exists || familyData == null) {
       throw Exception('Perfil do familiar não encontrado.');
     }
 
-    final familyData = familyDoc.data()!;
     final familyInstitutionId = familyData['institutionId']?.toString();
     if (familyInstitutionId == null || familyInstitutionId.isEmpty) {
-      throw Exception('O responsável não está vinculado a uma instituição válida.');
+      throw Exception(
+        'O responsável não está vinculado a uma instituição válida.',
+      );
     }
 
     final elderQuery = await _firestore
         .collection('users')
         .where('type', isEqualTo: 'idoso')
         .where('elderLinkCode', isEqualTo: normalizedElderLinkCode)
+        .limit(2)
         .get();
 
     if (elderQuery.docs.isEmpty) {
@@ -314,19 +402,20 @@ class AuthService {
     final elderDoc = elderQuery.docs.first;
     final elderData = elderDoc.data();
     final elderInstitutionId = elderData['institutionId']?.toString();
-    final elderUid = elderDoc.id;
 
     if (elderInstitutionId == null || elderInstitutionId.isEmpty) {
       throw Exception('O idoso não possui instituição válida.');
     }
 
     if (elderInstitutionId != familyInstitutionId) {
-      throw Exception('O idoso e o familiar devem pertencer à mesma instituição.');
+      throw Exception(
+        'O idoso e o familiar devem pertencer à mesma instituição.',
+      );
     }
 
     final existingLink = await _firestore
         .collection('familyLinks')
-        .where('elderId', isEqualTo: elderUid)
+        .where('elderId', isEqualTo: elderDoc.id)
         .where('familiarId', isEqualTo: normalizedFamilyUid)
         .where('status', isEqualTo: 'active')
         .limit(1)
@@ -338,114 +427,84 @@ class AuthService {
 
     await _firestore.collection('familyLinks').add({
       'createdAt': FieldValue.serverTimestamp(),
-      'elderId': elderUid,
+      'elderId': elderDoc.id,
       'familiarId': normalizedFamilyUid,
       'institutionId': elderInstitutionId,
+      'receiveNotifications': receiveNotifications,
       'status': 'active',
     });
+
+    return {
+      'id': elderDoc.id,
+      ...elderData,
+    };
   }
 
-  /// Link using the elder document id (uid) instead of elderLinkCode.
-  Future<void> linkFamilyMemberToElderByUid({
-    required String familyUid,
-    required String elderUid,
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
+
+  Future<void> updateCurrentUserProfile({
+    required String name,
+    required String phone,
   }) async {
-    final normalizedFamilyUid = familyUid.trim();
-    final normalizedElderUid = elderUid.trim();
-
-    if (normalizedFamilyUid.isEmpty) {
-      throw Exception('Usuário familiar não identificado.');
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('Usuário não autenticado.');
     }
 
-    if (normalizedElderUid.isEmpty) {
-      throw Exception('Informe o id do idoso.');
+    final normalizedName = name.trim();
+    final normalizedPhone = AuthRegister.normalizePhone(phone);
+
+    if (normalizedName.isEmpty) {
+      throw Exception('Informe o nome completo.');
     }
 
-    final familyDoc = await _firestore.collection('users').doc(normalizedFamilyUid).get();
-    if (!familyDoc.exists || familyDoc.data() == null) {
-      throw Exception('Perfil do familiar não encontrado.');
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+      throw Exception('Informe um número de telefone válido.');
     }
 
-    final familyData = familyDoc.data()!;
-    final familyInstitutionId = familyData['institutionId']?.toString();
-    if (familyInstitutionId == null || familyInstitutionId.isEmpty) {
-      throw Exception('O responsável não está vinculado a uma instituição válida.');
+    await _firestore.collection('users').doc(user.uid).update({
+      'name': normalizedName,
+      'phone': normalizedPhone,
+    });
+
+    try {
+      await user.updateDisplayName(normalizedName);
+    } catch (_) {
+      // O documento do Firestore é a fonte principal do perfil no app.
+    }
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> getInstitutionById(
+    String institutionId,
+  ) async {
+    final normalizedId = institutionId.trim();
+    if (normalizedId.isEmpty) {
+      throw Exception('Instituição não identificada.');
     }
 
-    final elderDocRef = await _firestore.collection('users').doc(normalizedElderUid).get();
-    if (!elderDocRef.exists || elderDocRef.data() == null) {
-      throw Exception('Idoso não encontrado.');
-    }
-
-    final elderData = elderDocRef.data()!;
-    final elderInstitutionId = elderData['institutionId']?.toString();
-    final type = elderData['type']?.toString();
-
-    if (type != 'idoso') {
-      throw Exception('O usuário informado não é um idoso.');
-    }
-
-    if (elderInstitutionId == null || elderInstitutionId.isEmpty) {
-      throw Exception('O idoso não possui instituição válida.');
-    }
-
-    if (elderInstitutionId != familyInstitutionId) {
-      throw Exception('O idoso e o familiar devem pertencer à mesma instituição.');
-    }
-
-    final existingLink = await _firestore
-        .collection('familyLinks')
-        .where('elderId', isEqualTo: normalizedElderUid)
-        .where('familiarId', isEqualTo: normalizedFamilyUid)
-        .where('status', isEqualTo: 'active')
-        .limit(1)
+    final institution = await _firestore
+        .collection('institutions')
+        .doc(normalizedId)
         .get();
 
-    if (existingLink.docs.isNotEmpty) {
-      throw Exception('Você já está vinculado a este idoso.');
+    if (!institution.exists || institution.data() == null) {
+      throw Exception('Instituição não encontrada.');
     }
 
-    await _firestore.collection('familyLinks').add({
-      'createdAt': FieldValue.serverTimestamp(),
-      'elderId': normalizedElderUid,
-      'familiarId': normalizedFamilyUid,
-      'institutionId': elderInstitutionId,
-      'status': 'active',
-    });
+    return institution;
   }
 
-  Future<Map<String, dynamic>?> getCurrentUserData() async {
-    final currentUser = _auth.currentUser;
-    if (currentUser == null) {
-      return null;
-    }
-
-    final userDoc = await _firestore.collection('users').doc(currentUser.uid).get();
-    return userDoc.data();
-  }
-
-  Future<DocumentSnapshot<Map<String, dynamic>>> getUserById(String userId) async {
+  Future<DocumentSnapshot<Map<String, dynamic>>> getUserById(
+    String userId,
+  ) async {
     final userDoc = await _firestore.collection('users').doc(userId).get();
+
     if (!userDoc.exists || userDoc.data() == null) {
       throw Exception('Usuário não encontrado.');
     }
 
     return userDoc;
-  }
-}
-
-class ElderAuthService {
-  ElderAuthService._();
-
-  static final ElderAuthService instance = ElderAuthService._();
-
-  Future<DocumentSnapshot<Map<String, dynamic>>> loginWithInstitutionAndPassword({
-    required String institutionId,
-    required String password,
-  }) async {
-    return AuthService.instance.loginWithInstitutionAndPassword(
-      institutionId: institutionId,
-      password: password,
-    );
   }
 }

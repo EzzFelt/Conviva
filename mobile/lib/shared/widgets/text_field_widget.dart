@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
+
+enum TextFieldVariant {
+  surface,
+  tinted,
+}
 
 class TextFieldWidget extends StatelessWidget {
   const TextFieldWidget({
@@ -17,6 +23,11 @@ class TextFieldWidget extends StatelessWidget {
     this.onFieldSubmitted,
     this.autofillHints,
     this.inputFormatters,
+    this.variant = TextFieldVariant.surface,
+    this.readOnly = false,
+    this.minLines,
+    this.maxLines = 1,
+    this.onTap,
   });
 
   final TextEditingController controller;
@@ -30,12 +41,24 @@ class TextFieldWidget extends StatelessWidget {
   final ValueChanged<String>? onFieldSubmitted;
   final Iterable<String>? autofillHints;
   final List<TextInputFormatter>? inputFormatters;
+  final TextFieldVariant variant;
+  final bool readOnly;
+  final int? minLines;
+  final int? maxLines;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
+    final fillColor = switch (variant) {
+      TextFieldVariant.surface => colorScheme.surface,
+      TextFieldVariant.tinted => Color.alphaBlend(
+          context.appGradientColors.bottom.withValues(alpha: .55),
+          colorScheme.surface,
+        ),
+    };
 
     OutlineInputBorder border(Color color, {double width = 1}) {
       return OutlineInputBorder(
@@ -55,6 +78,10 @@ class TextFieldWidget extends StatelessWidget {
       onFieldSubmitted: onFieldSubmitted,
       autofillHints: autofillHints,
       inputFormatters: inputFormatters,
+      readOnly: readOnly,
+      minLines: minLines,
+      maxLines: maxLines,
+      onTap: onTap,
       cursorColor: colorScheme.primary,
       style: theme.textTheme.bodyLarge,
       decoration: InputDecoration(
@@ -63,7 +90,7 @@ class TextFieldWidget extends StatelessWidget {
           color: colorScheme.onSurfaceVariant,
         ),
         filled: true,
-        fillColor: colorScheme.surface,
+        fillColor: fillColor,
         contentPadding: EdgeInsets.symmetric(
           horizontal: sizes.md,
           vertical: sizes.md,
