@@ -9,11 +9,13 @@ class PageHeaderWidget extends StatelessWidget {
     required this.title,
     required this.onBackPressed,
     this.trailing,
+    this.titleLeading,
   });
 
   final String title;
   final VoidCallback onBackPressed;
   final Widget? trailing;
+  final Widget? titleLeading;
 
   @override
   Widget build(BuildContext context) {
@@ -36,14 +38,28 @@ class PageHeaderWidget extends StatelessWidget {
             Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: sizes.xxl),
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    color: colorScheme.onPrimary,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (titleLeading != null) ...[
+                      SizedBox.square(
+                        dimension: sizes.buttonSmall,
+                        child: titleLeading,
+                      ),
+                      SizedBox(width: sizes.sm),
+                    ],
+                    Flexible(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

@@ -9,7 +9,7 @@ import '../../../core/routes/route_names.dart';
 import '../../../shared/widgets/action_card_widget.dart';
 import '../../../shared/widgets/app_modal_widget.dart';
 import '../../../shared/widgets/content_panel_widget.dart';
-import '..//widgets/home_header_widget.dart';
+import '../widgets/home_header_widget.dart';
 import '../../../shared/widgets/info_card_widget.dart';
 import '../../auth/models/account_type.dart';
 import '../../auth/models/user_session.dart';
@@ -141,7 +141,11 @@ class ElderHomePage extends ConsumerWidget {
                 subtitle: visibleConversations[index].lastMessage,
                 size: InfoCardSize.small,
                 showGotoButton: true,
-                onPressed: () => context.go(RouteNames.chat),
+                onPressed: () => context.go(
+                  RouteNames.chatConversationPath(
+                    visibleConversations[index].id,
+                  ),
+                ),
               ),
               if (index < visibleConversations.length - 1)
                 SizedBox(height: sizes.lg),

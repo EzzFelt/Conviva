@@ -9,12 +9,14 @@ class SelectionOptionWidget extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     this.semanticLabel,
+    this.size,
   });
 
   final String label;
   final bool selected;
   final ValueChanged<bool> onSelected;
   final String? semanticLabel;
+  final double? size;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +42,7 @@ class SelectionOptionWidget extends StatelessWidget {
         child: InkWell(
           onTap: () => onSelected(!selected),
           child: SizedBox.square(
-            dimension: sizes.buttonSmall,
+            dimension: size ?? sizes.buttonSmall,
             child: Center(
               child: Text(
                 label,

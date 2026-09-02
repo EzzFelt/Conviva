@@ -28,6 +28,8 @@ class NextTaskCard extends StatelessWidget {
       RoutineTaskType.exercise => Icons.directions_walk_rounded,
       RoutineTaskType.leisure => Icons.interests_rounded,
       RoutineTaskType.appointment => Icons.medical_services_rounded,
+      RoutineTaskType.hygiene => Icons.shower_rounded,
+      RoutineTaskType.sleep => Icons.bed_rounded,
       RoutineTaskType.other => Icons.event_available_rounded,
       null => Icons.event_available_rounded,
     };

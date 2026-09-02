@@ -15,7 +15,12 @@ class RouteNames {
 
   static const menu = '/menu';
   static const chat = '/chat';
+  static const chatConversation = '/chat/:conversationId';
   static const routine = '/routine';
   static const profile = '/profile';
   static const settings = '/settings';
+
+  static String chatConversationPath(String conversationId) {
+    return '/chat/${Uri.encodeComponent(conversationId)}';
+  }
 }

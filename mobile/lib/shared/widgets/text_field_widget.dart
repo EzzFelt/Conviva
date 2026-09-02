@@ -28,6 +28,8 @@ class TextFieldWidget extends StatelessWidget {
     this.minLines,
     this.maxLines = 1,
     this.onTap,
+    this.prefixIcon,
+    this.suffixIcon,
   });
 
   final TextEditingController controller;
@@ -46,6 +48,8 @@ class TextFieldWidget extends StatelessWidget {
   final int? minLines;
   final int? maxLines;
   final VoidCallback? onTap;
+  final Widget? prefixIcon;
+  final Widget? suffixIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -86,6 +90,8 @@ class TextFieldWidget extends StatelessWidget {
       style: theme.textTheme.bodyLarge,
       decoration: InputDecoration(
         hintText: hintText,
+        prefixIcon: prefixIcon,
+        suffixIcon: suffixIcon,
         hintStyle: theme.textTheme.bodyLarge?.copyWith(
           color: colorScheme.onSurfaceVariant,
         ),

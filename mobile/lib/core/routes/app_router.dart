@@ -7,6 +7,7 @@ import '../../features/auth/pages/family_link_page.dart';
 import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
 import '../../features/chat/pages/chat_page.dart';
+import '../../features/chat/pages/conversation_page.dart';
 import '../../features/home/caregiver/caregiver_home_page.dart';
 import '../../features/home/elder/elder_home_page.dart';
 import '../../features/home/family/family_home_page.dart';
@@ -138,6 +139,14 @@ class AppRouter {
           GoRoute(
             path: RouteNames.chat,
             builder: (context, state) => const ChatPage(),
+          ),
+          GoRoute(
+            path: RouteNames.chatConversation,
+            builder: (context, state) {
+              return ConversationPage(
+                conversationId: state.pathParameters['conversationId']!,
+              );
+            },
           ),
           GoRoute(
             path: RouteNames.routine,

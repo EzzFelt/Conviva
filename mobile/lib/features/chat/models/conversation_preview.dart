@@ -11,6 +11,7 @@ enum ConversationParticipantType {
 class ConversationPreview {
   const ConversationPreview({
     required this.id,
+    required this.participantId,
     required this.participantName,
     required this.lastMessage,
     required this.participantType,
@@ -20,6 +21,7 @@ class ConversationPreview {
   });
 
   final String id;
+  final String participantId;
   final String participantName;
   final String lastMessage;
   final ConversationParticipantType participantType;
