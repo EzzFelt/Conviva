@@ -40,6 +40,7 @@ ChatMessage _messageFromDocument(
       'audio' => ChatMessageType.audio,
       _ => ChatMessageType.text,
     },
+    mediaUrl: data['mediaUrl']?.toString(),
     readBy: List<String>.from(data['readBy'] as List? ?? const []),
   );
 }

@@ -191,6 +191,7 @@ Future<void> sendMessage({
   required String recipientId,
   required String text,
   ChatMessageType type = ChatMessageType.text,
+  String? mediaUrl,
 }) async {
   final chatId = await getOrCreateChat(
     currentUser: currentUser,
@@ -208,6 +209,7 @@ Future<void> sendMessage({
     'senderId': currentUser.uid,
     'text': text,
     'type': _messageTypeValue(type),
+    'mediaUrl': ?mediaUrl,
     'createdAt': now,
     'readBy': [currentUser.uid],
   });
