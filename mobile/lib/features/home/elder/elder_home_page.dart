@@ -39,8 +39,7 @@ class ElderHomePage extends ConsumerWidget {
   IconData _participantIcon(ConversationParticipantType participantType) {
     return switch (participantType) {
       ConversationParticipantType.family => Icons.family_restroom_rounded,
-      ConversationParticipantType.caregiver =>
-        Icons.health_and_safety_rounded,
+      ConversationParticipantType.caregiver => Icons.health_and_safety_rounded,
       ConversationParticipantType.elder => Icons.elderly_rounded,
       ConversationParticipantType.staff => Icons.badge_rounded,
     };
@@ -53,14 +52,12 @@ class ElderHomePage extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final sizes = context.appSizes;
     final normalizedPhotoUrl = conversation.photoUrl?.trim();
-    final hasPhoto = normalizedPhotoUrl != null &&
-        normalizedPhotoUrl.isNotEmpty;
+    final hasPhoto =
+        normalizedPhotoUrl != null && normalizedPhotoUrl.isNotEmpty;
 
     return CircleAvatar(
       backgroundColor: colorScheme.primary.withValues(alpha: .12),
-      foregroundImage: hasPhoto
-          ? NetworkImage(normalizedPhotoUrl)
-          : null,
+      foregroundImage: hasPhoto ? NetworkImage(normalizedPhotoUrl) : null,
       child: Icon(
         _participantIcon(conversation.participantType),
         color: colorScheme.primary,
@@ -82,11 +79,7 @@ class ElderHomePage extends ConsumerWidget {
       padding: EdgeInsets.symmetric(vertical: sizes.lg),
       child: Column(
         children: [
-          Icon(
-            icon,
-            color: colorScheme.onSurfaceVariant,
-            size: sizes.xl,
-          ),
+          Icon(icon, color: colorScheme.onSurfaceVariant, size: sizes.xl),
           SizedBox(height: sizes.sm),
           Text(
             message,
@@ -103,6 +96,7 @@ class ElderHomePage extends ConsumerWidget {
   Widget _chatPreview(
     BuildContext context,
     AsyncValue<List<ConversationPreview>> conversationsState,
+    AsyncValue<Set<String>> linkedFamilyIdsState,
   ) {
     final sizes = context.appSizes;
 
@@ -117,7 +111,20 @@ class ElderHomePage extends ConsumerWidget {
         message: 'Não foi possível carregar as conversas.',
       ),
       data: (conversations) {
-        if (conversations.isEmpty) {
+        final linkedFamilyIds = linkedFamilyIdsState.asData?.value;
+        final visibleConversations = conversations
+            .where((conversation) {
+              if (conversation.participantType !=
+                  ConversationParticipantType.family) {
+                return true;
+              }
+              return linkedFamilyIds != null &&
+                  linkedFamilyIds.contains(conversation.participantId);
+            })
+            .take(2)
+            .toList();
+
+        if (visibleConversations.isEmpty) {
           return _emptyMessage(
             context,
             icon: Icons.chat_bubble_outline_rounded,
@@ -125,13 +132,13 @@ class ElderHomePage extends ConsumerWidget {
           );
         }
 
-        final visibleConversations = conversations.take(2).toList();
-
         return Column(
           children: [
-            for (var index = 0;
-                index < visibleConversations.length;
-                index++) ...[
+            for (
+              var index = 0;
+              index < visibleConversations.length;
+              index++
+            ) ...[
               InfoCardWidget(
                 leading: _conversationAvatar(
                   context,
@@ -174,13 +181,10 @@ class ElderHomePage extends ConsumerWidget {
     );
   }
 
-  void _showUnavailableMessage(
-    BuildContext context,
-    String message,
-  ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  void _showUnavailableMessage(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _homeContent(
@@ -193,6 +197,7 @@ class ElderHomePage extends ConsumerWidget {
     final sizes = context.appSizes;
     final nextRoutine = ref.watch(nextElderRoutineProvider);
     final conversations = ref.watch(conversationPreviewsProvider);
+    final linkedFamilyIds = ref.watch(linkedFamilyIdsProvider);
     final displayName = session.name.trim().isEmpty
         ? 'Usuário'
         : session.name.trim();
@@ -210,10 +215,7 @@ class ElderHomePage extends ConsumerWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            gradientColors.bottom,
-            gradientColors.top,
-          ],
+          colors: [gradientColors.bottom, gradientColors.top],
         ),
       ),
       child: SafeArea(
@@ -238,10 +240,8 @@ class ElderHomePage extends ConsumerWidget {
                   sizes.xl,
                 ),
                 topPanel: nextRoutine.when(
-                  loading: () => const NextTaskCard(
-                    task: null,
-                    isLoading: true,
-                  ),
+                  loading: () =>
+                      const NextTaskCard(task: null, isLoading: true),
                   error: (_, _) => const NextTaskCard(
                     task: null,
                     emptyMessage: 'Não foi possível carregar a próxima tarefa',
@@ -263,7 +263,7 @@ class ElderHomePage extends ConsumerWidget {
                   children: [
                     _sectionTitle(context, 'Chat - Converse'),
                     SizedBox(height: sizes.md),
-                    _chatPreview(context, conversations),
+                    _chatPreview(context, conversations, linkedFamilyIds),
                     SizedBox(height: sizes.xxl),
                     _sectionTitle(
                       context,
@@ -284,13 +284,11 @@ class ElderHomePage extends ConsumerWidget {
                       },
                     ),
                     SizedBox(height: sizes.xxl),
-                    _sectionTitle(
-                      context,
-                      'Central de Denúncias  -\nDenuncie',
-                    ),
+                    _sectionTitle(context, 'Central de Denúncias  -\nDenuncie'),
                     SizedBox(height: sizes.md),
                     ActionCardWidget(
-                      title: 'Denuncie abusos que\nestiver sofrendo de\n'
+                      title:
+                          'Denuncie abusos que\nestiver sofrendo de\n'
                           'maneira anônima',
                       illustration: actionIllustration(),
                       illustrationSize: sizes.xxl * 2,
@@ -334,11 +332,7 @@ class ElderHomePage extends ConsumerWidget {
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      icon,
-                      size: sizes.xxl,
-                      color: colorScheme.primary,
-                    ),
+                    Icon(icon, size: sizes.xxl, color: colorScheme.primary),
                     SizedBox(height: sizes.md),
                     Text(
                       message,

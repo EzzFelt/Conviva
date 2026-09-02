@@ -18,16 +18,12 @@ import '../widgets/chat_message_bubble_widget.dart';
 import '../widgets/chat_message_composer_widget.dart';
 
 class ConversationPage extends ConsumerStatefulWidget {
-  const ConversationPage({
-    super.key,
-    required this.conversationId,
-  });
+  const ConversationPage({super.key, required this.conversationId});
 
   final String conversationId;
 
   @override
-  ConsumerState<ConversationPage> createState() =>
-      _ConversationPageState();
+  ConsumerState<ConversationPage> createState() => _ConversationPageState();
 }
 
 class _ConversationPageState extends ConsumerState<ConversationPage> {
@@ -35,6 +31,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   final _scrollController = ScrollController();
   final _pendingMessages = <ChatMessage>[];
   bool _didScrollInitialMessages = false;
+  bool _didMarkAsRead = false;
 
   @override
   void dispose() {
@@ -44,9 +41,9 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   }
 
   void _showUnavailable(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _scrollToEnd() {
@@ -60,7 +57,10 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     });
   }
 
-  void _sendMessage(UserSession session) {
+  Future<void> _sendMessage(
+    UserSession session,
+    ConversationPreview conversation,
+  ) async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
@@ -76,6 +76,31 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       );
       _messageController.clear();
     });
+    try {
+      await sendMessage(
+        currentUser: session,
+        recipientId: conversation.participantId,
+        text: text,
+      );
+      if (mounted) {
+        setState(
+          () => _pendingMessages.removeWhere(
+            (message) =>
+                message.text == text && message.senderId == session.uid,
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _pendingMessages.removeWhere(
+            (message) =>
+                message.text == text && message.senderId == session.uid,
+          ),
+        );
+        _showUnavailable('Não foi possível enviar a mensagem: $error');
+      }
+    }
     _scrollToEnd();
   }
 
@@ -105,17 +130,13 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           child: Text('Não foi possível carregar as mensagens.'),
         ),
         data: (loadedMessages) {
-          final messages = [
-            ...loadedMessages,
-            ..._pendingMessages,
-          ]..sort((first, second) {
+          final messages = [...loadedMessages, ..._pendingMessages]
+            ..sort((first, second) {
               return first.sentAt.compareTo(second.sentAt);
             });
 
           if (messages.isEmpty) {
-            return const Center(
-              child: Text('Envie a primeira mensagem.'),
-            );
+            return const Center(child: Text('Envie a primeira mensagem.'));
           }
 
           if (!_didScrollInitialMessages) {
@@ -212,12 +233,12 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                         sizes.sm,
                         sizes.sm,
                         sizes.sm,
-                        sizes.xxl * 2 + sizes.lg,
+                        sizes.sm,
                       ),
                       child: ChatMessageComposerWidget(
                         controller: _messageController,
                         onChanged: (_) => setState(() {}),
-                        onSend: () => _sendMessage(session),
+                        onSend: () => _sendMessage(session, conversation),
                         onMicrophonePressed: () {
                           _showUnavailable(
                             'O envio de áudio será disponibilizado em breve.',
@@ -270,6 +291,13 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                 return const Center(child: Text('Conversa não encontrada.'));
               }
 
+              if (!_didMarkAsRead) {
+                _didMarkAsRead = true;
+                markAsRead(
+                  chatId: widget.conversationId,
+                  currentUserId: session.uid,
+                );
+              }
               return _content(context, session, conversation);
             },
           );

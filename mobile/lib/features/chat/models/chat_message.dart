@@ -16,6 +16,7 @@ class ChatMessage {
     required this.text,
     this.type = ChatMessageType.text,
     this.attachmentUrl,
+    this.readBy = const [],
   });
 
   final String id;
@@ -25,6 +26,7 @@ class ChatMessage {
   final String text;
   final ChatMessageType type;
   final String? attachmentUrl;
+  final List<String> readBy;
 
   bool isFrom(String userId) => senderId == userId;
 }

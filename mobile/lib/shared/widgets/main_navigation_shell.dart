@@ -35,10 +35,7 @@ class MainNavigationShell extends ConsumerWidget {
     return 0;
   }
 
-  Future<void> _goToHome(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
+  Future<void> _goToHome(BuildContext context, WidgetRef ref) async {
     try {
       final session = await ref.read(currentUserProvider.future);
       if (!context.mounted) return;
@@ -52,17 +49,13 @@ class MainNavigationShell extends ConsumerWidget {
     } catch (error) {
       if (!context.mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_errorMessage(error))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_errorMessage(error))));
     }
   }
 
-  void _selectDestination(
-    BuildContext context,
-    WidgetRef ref,
-    int index,
-  ) {
+  void _selectDestination(BuildContext context, WidgetRef ref, int index) {
     switch (index) {
       case 0:
         _goToHome(context, ref);
@@ -90,12 +83,14 @@ class MainNavigationShell extends ConsumerWidget {
     return Scaffold(
       extendBody: true,
       body: child,
-      bottomNavigationBar: MainNavigationBar(
-        currentIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          _selectDestination(context, ref, index);
-        },
-      ),
+      bottomNavigationBar: location.startsWith('${RouteNames.chat}/')
+          ? null
+          : MainNavigationBar(
+              currentIndex: _currentIndex,
+              onDestinationSelected: (index) {
+                _selectDestination(context, ref, index);
+              },
+            ),
     );
   }
 }

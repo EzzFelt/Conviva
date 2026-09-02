@@ -29,3 +29,20 @@ class ConversationPreview {
   final DateTime? lastMessageAt;
   final int unreadCount;
 }
+
+@immutable
+class InstitutionContact {
+  const InstitutionContact({
+    required this.uid,
+    required this.name,
+    required this.type,
+    this.phone,
+    this.photoUrl,
+  });
+
+  final String uid;
+  final String name;
+  final ConversationParticipantType type;
+  final String? phone;
+  final String? photoUrl;
+}

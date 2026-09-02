@@ -16,10 +16,7 @@ import '../models/conversation_preview.dart';
 import '../providers/conversation_previews_provider.dart';
 import '../widgets/conversation_list_item_widget.dart';
 
-enum _ElderConversationFilter {
-  caregiver,
-  family,
-}
+enum _ElderConversationFilter { caregiver, family }
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
@@ -30,8 +27,7 @@ class ChatPage extends ConsumerStatefulWidget {
 
 class _ChatPageState extends ConsumerState<ChatPage> {
   final _searchController = TextEditingController();
-  _ElderConversationFilter _elderFilter =
-      _ElderConversationFilter.caregiver;
+  _ElderConversationFilter _elderFilter = _ElderConversationFilter.caregiver;
 
   @override
   void dispose() {
@@ -42,12 +38,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   List<ConversationPreview> _visibleConversations(
     UserSession session,
     List<ConversationPreview> conversations,
+    Set<String> linkedFamilyIds,
   ) {
     final query = _searchController.text.trim().toLowerCase();
 
     return conversations.where((conversation) {
-      final matchesAccountFilter = session.accountType !=
-              AccountType.elder ||
+      final matchesAccountFilter =
+          session.accountType != AccountType.elder ||
           switch (_elderFilter) {
             _ElderConversationFilter.caregiver =>
               conversation.participantType ==
@@ -56,11 +53,21 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               conversation.participantType ==
                   ConversationParticipantType.family,
           };
-      final matchesSearch = query.isEmpty ||
+      final matchesFamilyLink =
+          (session.accountType == AccountType.elder &&
+                  conversation.participantType ==
+                      ConversationParticipantType.family) ||
+              (session.accountType == AccountType.family &&
+                  conversation.participantType ==
+                      ConversationParticipantType.elder)
+          ? linkedFamilyIds.contains(conversation.participantId)
+          : true;
+      final matchesSearch =
+          query.isEmpty ||
           conversation.participantName.toLowerCase().contains(query) ||
           conversation.lastMessage.toLowerCase().contains(query);
 
-      return matchesAccountFilter && matchesSearch;
+      return matchesAccountFilter && matchesFamilyLink && matchesSearch;
     }).toList();
   }
 
@@ -74,9 +81,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       child: ButtonWidget(
         label: label,
         size: ButtonSize.small,
-        variant: selected
-            ? ButtonVariant.primary
-            : ButtonVariant.outlined,
+        variant: selected ? ButtonVariant.primary : ButtonVariant.outlined,
         onPressed: () {
           setState(() => _elderFilter = value);
         },
@@ -122,6 +127,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     BuildContext context,
     UserSession session,
     AsyncValue<List<ConversationPreview>> conversationsState,
+    AsyncValue<List<InstitutionContact>> contactsState,
+    AsyncValue<Set<String>> linkedFamilyIdsState,
   ) {
     final sizes = context.appSizes;
 
@@ -136,7 +143,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         icon: Icons.error_outline_rounded,
       ),
       data: (conversations) {
-        final visible = _visibleConversations(session, conversations);
+        final knownParticipants = conversations
+            .map((conversation) => conversation.participantId)
+            .toSet();
+        final contacts =
+            contactsState.asData?.value ?? const <InstitutionContact>[];
+        final allConversations = [
+          ...conversations,
+          for (final contact in contacts)
+            if (!knownParticipants.contains(contact.uid))
+              ConversationPreview(
+                id: _chatId(session.uid, contact.uid),
+                participantId: contact.uid,
+                participantName: contact.name,
+                lastMessage: '',
+                participantType: contact.type,
+                photoUrl: contact.photoUrl,
+              ),
+        ];
+        final visible = _visibleConversations(
+          session,
+          allConversations,
+          linkedFamilyIdsState.asData?.value ?? const <String>{},
+        );
         if (visible.isEmpty) {
           return _emptyState(
             context,
@@ -169,12 +198,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     );
   }
 
-  Widget _content(
-    BuildContext context,
-    UserSession session,
-  ) {
+  String _chatId(String firstId, String secondId) {
+    final ids = [firstId, secondId]..sort();
+    return '${ids[0]}_${ids[1]}';
+  }
+
+  Widget _content(BuildContext context, UserSession session) {
     final sizes = context.appSizes;
     final conversationsState = ref.watch(conversationPreviewsProvider);
+    final contactsState = ref.watch(institutionContactsProvider);
+    final linkedFamilyIdsState = ref.watch(linkedFamilyIdsProvider);
     final panelRadius = Radius.circular(sizes.radiusLg + sizes.sm);
 
     return DecoratedBox(
@@ -245,6 +278,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       context,
                       session,
                       conversationsState,
+                      contactsState,
+                      linkedFamilyIdsState,
                     ),
                   ],
                 ),
