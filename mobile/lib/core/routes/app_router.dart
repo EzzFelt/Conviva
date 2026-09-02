@@ -15,6 +15,13 @@ import '../../features/onboarding/models/onboarding_arguments.dart';
 import '../../features/onboarding/pages/onboarding_page.dart';
 import '../../features/onboarding/pages/splash_page.dart';
 
+import '../../features/reports/pages/report_start_page.dart';
+import '../../features/reports/pages/report_form_page.dart';
+import '../../features/reports/pages/report_offender_choice_page.dart';
+import '../../features/reports/pages/report_select_person_page.dart';
+import '../../features/reports/pages/report_success_page.dart';
+import '../../features/reports/models/report_draft.dart';
+
 import 'route_names.dart';
 
 class AppRouter {
@@ -87,6 +94,40 @@ class AppRouter {
       GoRoute(
         path: RouteNames.familyLink,
               builder: (context, state) => const FamilyLinkPage(),
+      ),
+
+      GoRoute(
+        path: RouteNames.reportStart,
+        builder: (context, state) => const ReportStartPage(),
+      ),
+
+      GoRoute(
+        path: RouteNames.reportForm,
+        builder: (context, state) {
+          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : null;
+          return ReportFormPage(initialDraft: draft);
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.reportOffenderChoice,
+        builder: (context, state) {
+          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : const ReportDraft();
+          return ReportOffenderChoicePage(draft: draft);
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.reportSelectPerson,
+        builder: (context, state) {
+          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : const ReportDraft();
+          return ReportSelectPersonPage(draft: draft);
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.reportSuccess,
+        builder: (context, state) => const ReportSuccessPage(),
       ),
 
       GoRoute(

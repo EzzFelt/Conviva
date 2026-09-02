@@ -10,4 +10,11 @@ class RouteNames {
 
   static const elderHome = '/home/elder';
   static const familyHome = '/home/family';
+
+  // Reports
+  static const reportStart = '/reports/start';
+  static const reportForm = '/reports/form';
+  static const reportOffenderChoice = '/reports/offender';
+  static const reportSelectPerson = '/reports/select-person';
+  static const reportSuccess = '/reports/success';
 }

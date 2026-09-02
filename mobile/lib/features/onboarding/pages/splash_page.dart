@@ -55,11 +55,13 @@ class _SplashPageState extends State<SplashPage> {
                 .limit(1)
                 .get();
 
-            if (activeFamilyLink.docs.isNotEmpty) {
-              context.go(RouteNames.familyHome, extra: data['name']?.toString() ?? 'Maria Antônia');
-            } else {
-              context.go(RouteNames.familyLink);
-            }
+          if (!mounted) return;
+
+          if (activeFamilyLink.docs.isNotEmpty) {
+            context.go(RouteNames.familyHome, extra: data['name']?.toString() ?? 'Maria Antônia');
+          } else {
+            context.go(RouteNames.familyLink);
+          }
           } else {
             context.go(RouteNames.onboarding);
           }

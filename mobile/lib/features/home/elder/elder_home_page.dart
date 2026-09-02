@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/routes/route_names.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/assets_paths.dart';
 import '../../../../shared/widgets/action_card_widget.dart';
@@ -153,7 +155,7 @@ class ElderHomePage extends StatelessWidget {
                         ),
                         illustrationSize: sizes.xxl * 2.5,
                         actionLabel: 'Denuncie!',
-                        onPressed: () {},
+                        onPressed: () => context.go(RouteNames.reportStart),
                         layout: ActionCardLayout.textFirst,
                         showIllustrationBackground: false,
                       ),
