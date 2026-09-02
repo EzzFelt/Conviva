@@ -51,6 +51,73 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
+    match /chats/{chatId} {
+      function isChatParticipant() {
+        return signedIn() &&
+          resource.data.participants.hasAny([request.auth.uid]) &&
+          resource.data.institutionId ==
+            get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.institutionId;
+      }
+
+      function isChatParticipantOnCreate() {
+        return signedIn() &&
+          request.resource.data.participants.hasAny([request.auth.uid]) &&
+          request.resource.data.institutionId ==
+            get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.institutionId;
+      }
+
+      allow get: if !exists(
+        /databases/$(database)/documents/chats/$(chatId)
+      ) || isChatParticipant();
+      allow list: if isChatParticipant();
+      allow create: if isChatParticipantOnCreate() &&
+        request.resource.data.chatId == chatId &&
+        request.resource.data.participants.size() == 2 &&
+        request.resource.data.participantsData is map &&
+        request.resource.data.unreadCount is map;
+      allow update: if isChatParticipant() &&
+        request.resource.data.participants == resource.data.participants &&
+        request.resource.data.institutionId == resource.data.institutionId;
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        function isParentChatParticipant() {
+          return signedIn() &&
+            get(
+              /databases/$(database)/documents/chats/$(chatId)
+            ).data.participants.hasAny([request.auth.uid]) &&
+            get(
+              /databases/$(database)/documents/chats/$(chatId)
+            ).data.institutionId ==
+              get(
+                /databases/$(database)/documents/users/$(request.auth.uid)
+              ).data.institutionId;
+        }
+
+        allow get, list: if !exists(
+          /databases/$(database)/documents/chats/$(chatId)
+        ) || isParentChatParticipant();
+        allow create: if isParentChatParticipant() &&
+          request.resource.data.messageId == messageId &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.text is string &&
+          request.resource.data.type in ['text', 'image', 'audio'] &&
+          request.resource.data.readBy is list &&
+          request.resource.data.createdAt is timestamp;
+        allow update: if isParentChatParticipant() &&
+          request.resource.data.senderId == resource.data.senderId &&
+          request.resource.data.messageId == resource.data.messageId &&
+          request.resource.data.readBy.hasOnly(
+            resource.data.readBy.concat([request.auth.uid])
+          );
+        allow delete: if false;
+      }
+    }
+
     match /familyLinks/{linkId} {
       allow create: if
         signedIn() &&

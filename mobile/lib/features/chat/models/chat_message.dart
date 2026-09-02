@@ -15,7 +15,8 @@ class ChatMessage {
     required this.sentAt,
     required this.text,
     this.type = ChatMessageType.text,
-    this.attachmentUrl,
+    this.mediaUrl,
+    this.readBy = const [],
   });
 
   final String id;
@@ -24,7 +25,8 @@ class ChatMessage {
   final DateTime sentAt;
   final String text;
   final ChatMessageType type;
-  final String? attachmentUrl;
+  final String? mediaUrl;
+  final List<String> readBy;
 
   bool isFrom(String userId) => senderId == userId;
 }
