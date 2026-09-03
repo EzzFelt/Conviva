@@ -10,8 +10,68 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == userId;
     }
 
+    function currentUser() {
+      return get(
+        /databases/$(database)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function isActiveUser() {
+      return signedIn() && currentUser().status == 'active';
+    }
+
+    function isSameInstitution(institutionId) {
+      return isActiveUser() &&
+        currentUser().institutionId == institutionId;
+    }
+
+    function isActiveElder(elderId) {
+      return exists(
+        /databases/$(database)/documents/users/$(elderId)
+      ) &&
+        get(
+          /databases/$(database)/documents/users/$(elderId)
+        ).data.type == 'idoso' &&
+        get(
+          /databases/$(database)/documents/users/$(elderId)
+        ).data.status == 'active';
+    }
+
+    function familyLinkId(elderId, familyId) {
+      return elderId + '_' + familyId;
+    }
+
+    function hasActiveFamilyLink(elderId) {
+      let linkId = familyLinkId(elderId, request.auth.uid);
+      return exists(
+        /databases/$(database)/documents/familyLinks/$(linkId)
+      ) &&
+        get(
+          /databases/$(database)/documents/familyLinks/$(linkId)
+        ).data.status == 'active' &&
+        get(
+          /databases/$(database)/documents/familyLinks/$(linkId)
+        ).data.elderId == elderId &&
+        get(
+          /databases/$(database)/documents/familyLinks/$(linkId)
+        ).data.familiarId == request.auth.uid;
+    }
+
+    function canAccessElder(elderId) {
+      return isActiveUser() &&
+        isActiveElder(elderId) &&
+        get(
+          /databases/$(database)/documents/users/$(elderId)
+        ).data.institutionId == currentUser().institutionId &&
+        (
+          (currentUser().type == 'idoso' && request.auth.uid == elderId) ||
+          currentUser().type == 'caregiver' ||
+          (currentUser().type == 'family' && hasActiveFamilyLink(elderId))
+        );
+    }
+
     match /institutions/{institutionId} {
-      // O cadastro consulta a instituição antes de criar a conta.
+      // O cadastro precisa consultar a instituição antes de criar a conta.
       allow read: if true;
       allow write: if false;
     }
@@ -37,10 +97,9 @@ service cloud.firestore {
         )
       );
 
-      // Mantém compatibilidade com as consultas atuais do app.
-      // Quando as consultas incluírem a instituição, esta leitura poderá
-      // ser restringida por instituição e vínculo.
-      allow read: if signedIn();
+      allow get: if isOwner(userId) ||
+        isSameInstitution(resource.data.institutionId);
+      allow list: if isSameInstitution(resource.data.institutionId);
 
       allow update: if isOwner(userId) &&
         request.resource.data
@@ -53,21 +112,15 @@ service cloud.firestore {
 
     match /chats/{chatId} {
       function isChatParticipant() {
-        return signedIn() &&
+        return isActiveUser() &&
           resource.data.participants.hasAny([request.auth.uid]) &&
-          resource.data.institutionId ==
-            get(
-              /databases/$(database)/documents/users/$(request.auth.uid)
-            ).data.institutionId;
+          resource.data.institutionId == currentUser().institutionId;
       }
 
       function isChatParticipantOnCreate() {
-        return signedIn() &&
+        return isActiveUser() &&
           request.resource.data.participants.hasAny([request.auth.uid]) &&
-          request.resource.data.institutionId ==
-            get(
-              /databases/$(database)/documents/users/$(request.auth.uid)
-            ).data.institutionId;
+          request.resource.data.institutionId == currentUser().institutionId;
       }
 
       allow get: if !exists(
@@ -86,16 +139,13 @@ service cloud.firestore {
 
       match /messages/{messageId} {
         function isParentChatParticipant() {
-          return signedIn() &&
+          return isActiveUser() &&
             get(
               /databases/$(database)/documents/chats/$(chatId)
             ).data.participants.hasAny([request.auth.uid]) &&
             get(
               /databases/$(database)/documents/chats/$(chatId)
-            ).data.institutionId ==
-              get(
-                /databases/$(database)/documents/users/$(request.auth.uid)
-              ).data.institutionId;
+            ).data.institutionId == currentUser().institutionId;
         }
 
         allow get, list: if !exists(
@@ -119,36 +169,165 @@ service cloud.firestore {
     }
 
     match /familyLinks/{linkId} {
-      allow create: if
-        signedIn() &&
+      allow create: if isActiveUser() &&
+        currentUser().type == 'family' &&
         request.resource.data.familiarId == request.auth.uid &&
         request.resource.data.elderId is string &&
-        request.resource.data.institutionId is string &&
+        request.resource.data.institutionId == currentUser().institutionId &&
         request.resource.data.status == 'active' &&
         request.resource.data.createdAt is timestamp &&
-        get(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        ).data.type == 'family' &&
-        get(
-          /databases/$(database)/documents/users/$(request.resource.data.elderId)
-        ).data.type == 'idoso' &&
-        get(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        ).data.institutionId == request.resource.data.institutionId &&
+        request.resource.data.receiveNotifications is bool &&
+        linkId == familyLinkId(
+          request.resource.data.elderId,
+          request.auth.uid
+        ) &&
+        isActiveElder(request.resource.data.elderId) &&
         get(
           /databases/$(database)/documents/users/$(request.resource.data.elderId)
         ).data.institutionId == request.resource.data.institutionId;
 
-      allow read: if
-        signedIn() &&
+      allow get: if isActiveUser() &&
+        (
+          !exists(
+            /databases/$(database)/documents/familyLinks/$(linkId)
+          ) ||
+          request.auth.uid == resource.data.familiarId ||
+          request.auth.uid == resource.data.elderId
+        );
+      allow list: if isActiveUser() &&
         (
           request.auth.uid == resource.data.familiarId ||
           request.auth.uid == resource.data.elderId
         );
 
-      allow update, delete: if
-        signedIn() &&
+      allow update: if isActiveUser() &&
+        request.auth.uid == resource.data.familiarId &&
+        linkId == familyLinkId(resource.data.elderId, request.auth.uid) &&
+        request.resource.data.elderId == resource.data.elderId &&
+        request.resource.data.familiarId == resource.data.familiarId &&
+        request.resource.data.institutionId == resource.data.institutionId &&
+        request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly(['receiveNotifications', 'status', 'createdAt']);
+
+      allow delete: if isActiveUser() &&
         request.auth.uid == resource.data.familiarId;
+    }
+
+    match /routines/{elderId} {
+      function validRoutineDocument() {
+        return request.resource.data.elderId == elderId &&
+          request.resource.data.institutionId == currentUser().institutionId &&
+          request.resource.data.canElderCreateTasks is bool &&
+          request.resource.data.canElderEditOwnTasks is bool &&
+          request.resource.data.updatedByUserId == request.auth.uid &&
+          request.resource.data.createdAt is timestamp &&
+          request.resource.data.updatedAt is timestamp;
+      }
+
+      allow read: if canAccessElder(elderId);
+      allow create: if canAccessElder(elderId) && validRoutineDocument();
+      allow update: if canAccessElder(elderId) &&
+        currentUser().type == 'caregiver' &&
+        request.resource.data.elderId == resource.data.elderId &&
+        request.resource.data.institutionId == resource.data.institutionId &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.updatedByUserId == request.auth.uid &&
+        request.resource.data.updatedAt is timestamp &&
+        request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'canElderCreateTasks',
+            'canElderEditOwnTasks',
+            'updatedAt',
+            'updatedByUserId'
+          ]);
+      allow delete: if false;
+
+      match /tasks/{taskId} {
+        function actorRole() {
+          return currentUser().type == 'idoso'
+            ? 'elder'
+            : currentUser().type;
+        }
+
+        function validTaskDocument() {
+          return request.resource.data.taskId == taskId &&
+            request.resource.data.elderId == elderId &&
+            request.resource.data.institutionId == currentUser().institutionId &&
+            request.resource.data.title is string &&
+            request.resource.data.title.size() > 0 &&
+            request.resource.data.startAt is timestamp &&
+            request.resource.data.endAt is timestamp &&
+            request.resource.data.endAt > request.resource.data.startAt &&
+            request.resource.data.createdByUserId is string &&
+            request.resource.data.createdByRole in [
+              'elder',
+              'caregiver',
+              'family'
+            ] &&
+            request.resource.data.type in [
+              'breakfast',
+              'medication',
+              'meal',
+              'exercise',
+              'leisure',
+              'appointment',
+              'hygiene',
+              'sleep',
+              'other'
+            ] &&
+            request.resource.data.repeatWeekly is bool &&
+            request.resource.data.repeatWeekdays is list &&
+            request.resource.data.createdAt is timestamp &&
+            request.resource.data.updatedAt is timestamp;
+        }
+
+        function elderCanCreateTask() {
+          return currentUser().type != 'idoso' ||
+            !exists(
+              /databases/$(database)/documents/routines/$(elderId)
+            ) ||
+            get(
+              /databases/$(database)/documents/routines/$(elderId)
+            ).data.canElderCreateTasks == true;
+        }
+
+        function elderCanChangeTask() {
+          return currentUser().type != 'idoso' ||
+            (
+              resource.data.createdByUserId == request.auth.uid &&
+              (
+                !exists(
+                  /databases/$(database)/documents/routines/$(elderId)
+                ) ||
+                get(
+                  /databases/$(database)/documents/routines/$(elderId)
+                ).data.canElderEditOwnTasks == true
+              )
+            );
+        }
+
+        allow read: if canAccessElder(elderId);
+        allow create: if canAccessElder(elderId) &&
+          elderCanCreateTask() &&
+          request.resource.data.createdByUserId == request.auth.uid &&
+          request.resource.data.createdByRole == actorRole() &&
+          validTaskDocument();
+        allow update: if canAccessElder(elderId) &&
+          elderCanChangeTask() &&
+          request.resource.data.taskId == resource.data.taskId &&
+          request.resource.data.elderId == resource.data.elderId &&
+          request.resource.data.institutionId == resource.data.institutionId &&
+          request.resource.data.createdByUserId ==
+            resource.data.createdByUserId &&
+          request.resource.data.createdByRole == resource.data.createdByRole &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          validTaskDocument();
+        allow delete: if canAccessElder(elderId) && elderCanChangeTask();
+      }
     }
   }
 }

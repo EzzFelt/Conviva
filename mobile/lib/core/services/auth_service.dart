@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../utils/family_link_id.dart';
+
 class AuthRegister {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -386,6 +388,7 @@ class AuthService {
 
     final elderQuery = await _firestore
         .collection('users')
+        .where('institutionId', isEqualTo: familyInstitutionId)
         .where('type', isEqualTo: 'idoso')
         .where('elderLinkCode', isEqualTo: normalizedElderLinkCode)
         .limit(2)
@@ -413,19 +416,21 @@ class AuthService {
       );
     }
 
+    final linkId = FamilyLinkId.forUsers(
+      elderId: elderDoc.id,
+      familyId: normalizedFamilyUid,
+    );
     final existingLink = await _firestore
         .collection('familyLinks')
-        .where('elderId', isEqualTo: elderDoc.id)
-        .where('familiarId', isEqualTo: normalizedFamilyUid)
-        .where('status', isEqualTo: 'active')
-        .limit(1)
+        .doc(linkId)
         .get();
 
-    if (existingLink.docs.isNotEmpty) {
+    if (existingLink.exists &&
+        existingLink.data()?['status']?.toString() == 'active') {
       throw Exception('Você já está vinculado a este idoso.');
     }
 
-    await _firestore.collection('familyLinks').add({
+    await _firestore.collection('familyLinks').doc(linkId).set({
       'createdAt': FieldValue.serverTimestamp(),
       'elderId': elderDoc.id,
       'familiarId': normalizedFamilyUid,

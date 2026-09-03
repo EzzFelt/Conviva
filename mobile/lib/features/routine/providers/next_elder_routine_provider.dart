@@ -5,16 +5,18 @@ import '../../auth/providers/current_user_provider.dart';
 import '../models/routine_task.dart';
 import 'routine_provider.dart';
 
-final nextElderRoutineProvider = FutureProvider<RoutineTask?>((ref) async {
-  final routineState = ref.watch(routineProvider);
+final nextElderRoutineProvider = StreamProvider<RoutineTask?>((ref) async* {
   final session = await ref.watch(currentUserProvider.future);
-
   if (session == null || session.accountType != AccountType.elder) {
-    return null;
+    yield null;
+    return;
   }
 
-  return routineState.nextTask(
-    elderId: session.uid,
-    moment: DateTime.now(),
-  );
+  final repository = ref.watch(routineRepositoryProvider);
+  yield* repository.watchTasks(session.uid).map((tasks) {
+    return RoutineState(tasks: tasks).nextTask(
+      elderId: session.uid,
+      moment: DateTime.now(),
+    );
+  });
 });

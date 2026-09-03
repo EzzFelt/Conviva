@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 
 enum RoutineTaskType {
@@ -46,6 +47,67 @@ class RoutineTask {
   /// Usa os valores de [DateTime.monday] até [DateTime.sunday].
   final Set<int> repeatWeekdays;
 
+  factory RoutineTask.fromFirestore(
+    DocumentSnapshot<Map<String, dynamic>> document,
+  ) {
+    final data = document.data();
+    if (data == null) {
+      throw StateError('Tarefa de rotina não encontrada.');
+    }
+
+    final startAt = data['startAt'];
+    final endAt = data['endAt'];
+    if (startAt is! Timestamp || endAt is! Timestamp) {
+      throw StateError('A tarefa ${document.id} possui horários inválidos.');
+    }
+
+    final repeatWeekdays = (data['repeatWeekdays'] as List? ?? const [])
+        .whereType<num>()
+        .map((value) => value.toInt())
+        .where(
+          (weekday) =>
+              weekday >= DateTime.monday && weekday <= DateTime.sunday,
+        )
+        .toSet();
+
+    return RoutineTask(
+      id: document.id,
+      elderId: data['elderId']?.toString() ?? '',
+      title: data['title']?.toString() ?? '',
+      startAt: startAt.toDate(),
+      endAt: endAt.toDate(),
+      createdByUserId: data['createdByUserId']?.toString() ?? '',
+      createdByRole: RoutineTaskCreatorRole.values.firstWhere(
+        (role) => role.name == data['createdByRole']?.toString(),
+        orElse: () => RoutineTaskCreatorRole.elder,
+      ),
+      type: RoutineTaskType.values.firstWhere(
+        (type) => type.name == data['type']?.toString(),
+        orElse: () => RoutineTaskType.other,
+      ),
+      repeatWeekly: data['repeatWeekly'] == true,
+      repeatWeekdays: repeatWeekdays,
+    );
+  }
+
+  Map<String, dynamic> toFirestore({
+    required String institutionId,
+  }) {
+    return {
+      'taskId': id,
+      'elderId': elderId,
+      'institutionId': institutionId,
+      'title': title.trim(),
+      'startAt': Timestamp.fromDate(startAt),
+      'endAt': Timestamp.fromDate(endAt),
+      'createdByUserId': createdByUserId,
+      'createdByRole': createdByRole.name,
+      'type': type.name,
+      'repeatWeekly': repeatWeekly,
+      'repeatWeekdays': repeatWeekdays.toList()..sort(),
+    };
+  }
+
   bool get endsOnNextDay => !_isSameDate(startAt, endAt);
 
   String get timeLabel {
@@ -88,6 +150,7 @@ class RoutineTask {
   }
 
   RoutineTask copyWith({
+    String? id,
     String? title,
     DateTime? startAt,
     DateTime? endAt,
@@ -96,7 +159,7 @@ class RoutineTask {
     Set<int>? repeatWeekdays,
   }) {
     return RoutineTask(
-      id: id,
+      id: id ?? this.id,
       elderId: elderId,
       title: title ?? this.title,
       startAt: startAt ?? this.startAt,

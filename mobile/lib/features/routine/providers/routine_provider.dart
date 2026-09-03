@@ -3,27 +3,48 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/models/account_type.dart';
 import '../../auth/models/user_session.dart';
+import '../../auth/providers/current_user_provider.dart';
+import '../models/routine_elder_summary.dart';
 import '../models/routine_permissions.dart';
 import '../models/routine_task.dart';
+import '../repositories/routine_repository.dart';
 
-final routineProvider = NotifierProvider<RoutineNotifier, RoutineState>(
-  RoutineNotifier.new,
+final routineRepositoryProvider = Provider<RoutineRepository>(
+  (_) => RoutineRepository.instance,
 );
+
+final accessibleRoutineEldersProvider =
+    StreamProvider<List<RoutineElderSummary>>((ref) async* {
+  final actor = await ref.watch(currentUserProvider.future);
+  if (actor == null) {
+    yield const <RoutineElderSummary>[];
+    return;
+  }
+
+  final repository = ref.watch(routineRepositoryProvider);
+  yield* repository.watchAccessibleElders(actor);
+});
+
+final routineElderProvider =
+    StreamProvider.family<RoutineElderSummary?, String>((ref, elderId) {
+  return ref.watch(routineRepositoryProvider).watchElder(elderId);
+});
+
+final routineTasksProvider =
+    StreamProvider.family<List<RoutineTask>, String>((ref, elderId) {
+  return ref.watch(routineRepositoryProvider).watchTasks(elderId);
+});
+
+final routinePermissionsProvider =
+    StreamProvider.family<RoutinePermissions, String>((ref, elderId) {
+  return ref.watch(routineRepositoryProvider).watchPermissions(elderId);
+});
 
 @immutable
 class RoutineState {
-  const RoutineState({
-    this.tasks = const <RoutineTask>[],
-    this.permissionsByElder = const <String, RoutinePermissions>{},
-  });
+  const RoutineState({this.tasks = const <RoutineTask>[]});
 
   final List<RoutineTask> tasks;
-  final Map<String, RoutinePermissions> permissionsByElder;
-
-  RoutinePermissions permissionsFor(String elderId) {
-    return permissionsByElder[elderId] ??
-        RoutinePermissions(elderId: elderId);
-  }
 
   List<RoutineTask> tasksForDay({
     required String elderId,
@@ -36,7 +57,7 @@ class RoutineState {
         return first.startOn(day).compareTo(second.startOn(day));
       });
 
-    return List.unmodifiable(result);
+    return List<RoutineTask>.unmodifiable(result);
   }
 
   RoutineTask? nextTask({
@@ -50,135 +71,24 @@ class RoutineState {
 
     return candidates.isEmpty ? null : candidates.first;
   }
-
-  RoutineState copyWith({
-    List<RoutineTask>? tasks,
-    Map<String, RoutinePermissions>? permissionsByElder,
-  }) {
-    return RoutineState(
-      tasks: tasks ?? this.tasks,
-      permissionsByElder:
-          permissionsByElder ?? this.permissionsByElder,
-    );
-  }
 }
 
-class RoutineNotifier extends Notifier<RoutineState> {
-  @override
-  RoutineState build() => const RoutineState();
+bool canCreateRoutineTask({
+  required UserSession actor,
+  required String elderId,
+  required RoutinePermissions permissions,
+}) {
+  if (actor.accountType != AccountType.elder) return true;
+  return actor.uid == elderId && permissions.canElderCreateTasks;
+}
 
-  bool canCreateTask({
-    required UserSession actor,
-    required String elderId,
-  }) {
-    if (actor.accountType != AccountType.elder) {
-      return true;
-    }
-
-    return actor.uid == elderId &&
-        state.permissionsFor(elderId).canElderCreateTasks;
-  }
-
-  bool canEditTask({
-    required UserSession actor,
-    required RoutineTask task,
-  }) {
-    if (actor.accountType != AccountType.elder) {
-      return true;
-    }
-
-    final permissions = state.permissionsFor(task.elderId);
-    return actor.uid == task.elderId &&
-        task.createdByUserId == actor.uid &&
-        permissions.canElderEditOwnTasks;
-  }
-
-  void addTask({
-    required UserSession actor,
-    required RoutineTask task,
-  }) {
-    if (!canCreateTask(actor: actor, elderId: task.elderId)) {
-      throw StateError(
-        'Seu cuidador desativou a criação de tarefas.',
-      );
-    }
-
-    _validateTask(task);
-    state = state.copyWith(tasks: [...state.tasks, task]);
-  }
-
-  void updateTask({
-    required UserSession actor,
-    required RoutineTask task,
-  }) {
-    final currentIndex = state.tasks.indexWhere(
-      (currentTask) => currentTask.id == task.id,
-    );
-    if (currentIndex == -1) {
-      throw StateError('Tarefa não encontrada.');
-    }
-
-    final currentTask = state.tasks[currentIndex];
-    if (!canEditTask(actor: actor, task: currentTask)) {
-      throw StateError('Você não possui permissão para editar esta tarefa.');
-    }
-
-    _validateTask(task);
-    final updatedTasks = [...state.tasks];
-    updatedTasks[currentIndex] = task;
-    state = state.copyWith(tasks: updatedTasks);
-  }
-
-  void removeTask({
-    required UserSession actor,
-    required RoutineTask task,
-  }) {
-    if (!canEditTask(actor: actor, task: task)) {
-      throw StateError('Você não possui permissão para remover esta tarefa.');
-    }
-
-    state = state.copyWith(
-      tasks: state.tasks
-          .where((currentTask) => currentTask.id != task.id)
-          .toList(),
-    );
-  }
-
-  void setElderPermissions({
-    required UserSession actor,
-    required String elderId,
-    required bool canCreateTasks,
-    required bool canEditOwnTasks,
-  }) {
-    if (actor.accountType != AccountType.caregiver) {
-      throw StateError(
-        'Somente o cuidador pode alterar as permissões da rotina.',
-      );
-    }
-
-    state = state.copyWith(
-      permissionsByElder: {
-        ...state.permissionsByElder,
-        elderId: RoutinePermissions(
-          elderId: elderId,
-          canElderCreateTasks: canCreateTasks,
-          canElderEditOwnTasks: canEditOwnTasks,
-        ),
-      },
-    );
-  }
-
-  void _validateTask(RoutineTask task) {
-    if (task.title.trim().isEmpty) {
-      throw StateError('Informe o nome da tarefa.');
-    }
-
-    if (!task.endAt.isAfter(task.startAt)) {
-      throw StateError('O término deve ser posterior ao começo.');
-    }
-
-    if (task.repeatWeekly && task.repeatWeekdays.isEmpty) {
-      throw StateError('Escolha pelo menos um dia para repetir a tarefa.');
-    }
-  }
+bool canEditRoutineTask({
+  required UserSession actor,
+  required RoutineTask task,
+  required RoutinePermissions permissions,
+}) {
+  if (actor.accountType != AccountType.elder) return true;
+  return actor.uid == task.elderId &&
+      task.createdByUserId == actor.uid &&
+      permissions.canElderEditOwnTasks;
 }

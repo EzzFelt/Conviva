@@ -153,6 +153,14 @@ class AppRouter {
             builder: (context, state) => const RoutinePage(),
           ),
           GoRoute(
+            path: RouteNames.routineDetail,
+            builder: (context, state) {
+              return RoutinePage(
+                elderId: state.pathParameters['elderId']!,
+              );
+            },
+          ),
+          GoRoute(
             path: RouteNames.profile,
             builder: (context, state) => const ProfilePage(),
           ),

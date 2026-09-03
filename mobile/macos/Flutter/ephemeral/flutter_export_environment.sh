@@ -2,6 +2,7 @@
 # This is a generated file; do not edit or check into version control.
 export "FLUTTER_ROOT=C:\Users\pedro\Downloads\flutter_windows_3.41.8-stable\flutter"
 export "FLUTTER_APPLICATION_PATH=C:\Users\pedro\Downloads\pasta do pi\Conviva\mobile"
+export "FLUTTER_FRAMEWORK_SWIFT_PACKAGE_PATH=C:\Users\pedro\Downloads\pasta do pi\Conviva\mobile\macos\Flutter\ephemeral\Packages\.packages\FlutterFramework"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_BUILD_DIR=build"
 export "FLUTTER_BUILD_NAME=0.1.0"

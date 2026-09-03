@@ -17,10 +17,15 @@ class RouteNames {
   static const chat = '/chat';
   static const chatConversation = '/chat/:conversationId';
   static const routine = '/routine';
+  static const routineDetail = '/routine/:elderId';
   static const profile = '/profile';
   static const settings = '/settings';
 
   static String chatConversationPath(String conversationId) {
     return '/chat/${Uri.encodeComponent(conversationId)}';
+  }
+
+  static String routinePath(String elderId) {
+    return '/routine/${Uri.encodeComponent(elderId)}';
   }
 }
