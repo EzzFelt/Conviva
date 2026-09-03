@@ -16,6 +16,13 @@ import '../../features/onboarding/models/onboarding_arguments.dart';
 import '../../features/onboarding/pages/onboarding_page.dart';
 import '../../features/onboarding/pages/splash_page.dart';
 import '../../features/profile/pages/profile_page.dart';
+import '../../features/reports/pages/report_form_page.dart';
+import '../../features/reports/pages/report_offender_choice_page.dart';
+import '../../features/reports/pages/report_select_person_page.dart';
+import '../../features/reports/pages/report_start_page.dart';
+import '../../features/reports/pages/report_success_page.dart';
+import '../../features/reports/pages/report_type_page.dart';
+import '../../features/reports/models/report_draft.dart';
 import '../../features/routine/pages/routine_page.dart';
 import '../../features/settings/pages/settings_page.dart';
 import '../../shared/widgets/main_navigation_shell.dart';
@@ -36,70 +43,48 @@ class AppRouter {
         pageBuilder: (context, state) {
           final arguments =
               state.extra as OnboardingArguments? ??
-                  const OnboardingArguments();
+              const OnboardingArguments();
 
           return CustomTransitionPage(
             key: state.pageKey,
             child: OnboardingPage(arguments: arguments),
-            transitionsBuilder: (
-              context,
-              animation,
-              secondaryAnimation,
-              child,
-            ) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
           );
         },
       ),
       GoRoute(
         path: RouteNames.register,
         redirect: (context, state) {
-          return state.extra is AuthArguments
-              ? null
-              : RouteNames.onboarding;
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
         },
         builder: (context, state) {
-          return RegisterPage(
-            arguments: state.extra as AuthArguments,
-          );
+          return RegisterPage(arguments: state.extra as AuthArguments);
         },
       ),
       GoRoute(
         path: RouteNames.login,
         redirect: (context, state) {
-          return state.extra is AuthArguments
-              ? null
-              : RouteNames.onboarding;
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
         },
         builder: (context, state) {
-          return LoginPage(
-            arguments: state.extra as AuthArguments,
-          );
+          return LoginPage(arguments: state.extra as AuthArguments);
         },
       ),
       GoRoute(
         path: RouteNames.elderLogin,
         redirect: (context, state) {
-          return state.extra is AuthArguments
-              ? null
-              : RouteNames.onboarding;
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
         },
         builder: (context, state) {
-          return ElderLoginPage(
-            arguments: state.extra as AuthArguments,
-          );
+          return ElderLoginPage(arguments: state.extra as AuthArguments);
         },
       ),
       ShellRoute(
         builder: (context, state, child) {
-          return MainNavigationShell(
-            location: state.uri.path,
-            child: child,
-          );
+          return MainNavigationShell(location: state.uri.path, child: child);
         },
         routes: [
           GoRoute(
@@ -117,9 +102,7 @@ class AppRouter {
                   ? state.extra! as Map<String, dynamic>
                   : <String, dynamic>{};
 
-              return CaregiverHomePage(
-                caregiverData: caregiverData,
-              );
+              return CaregiverHomePage(caregiverData: caregiverData);
             },
           ),
           GoRoute(
@@ -159,6 +142,36 @@ class AppRouter {
           GoRoute(
             path: RouteNames.settings,
             builder: (context, state) => const SettingsPage(),
+          ),
+          GoRoute(
+            path: RouteNames.reportStart,
+            builder: (context, state) => const ReportStartPage(),
+          ),
+          GoRoute(
+            path: RouteNames.reportType,
+            builder: (context, state) => const ReportTypePage(),
+          ),
+          GoRoute(
+            path: RouteNames.reportForm,
+            builder: (context, state) => ReportFormPage(
+              initialDraft: state.extra is ReportDraft
+                  ? state.extra! as ReportDraft
+                  : null,
+            ),
+          ),
+          GoRoute(
+            path: RouteNames.reportOffenderChoice,
+            builder: (context, state) =>
+                ReportOffenderChoicePage(draft: state.extra! as ReportDraft),
+          ),
+          GoRoute(
+            path: RouteNames.reportSelectPerson,
+            builder: (context, state) =>
+                ReportSelectPersonPage(draft: state.extra! as ReportDraft),
+          ),
+          GoRoute(
+            path: RouteNames.reportSuccess,
+            builder: (context, state) => const ReportSuccessPage(),
           ),
         ],
       ),

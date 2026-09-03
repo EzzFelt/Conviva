@@ -20,7 +20,8 @@ class MainNavigationShell extends ConsumerWidget {
   int get _currentIndex {
     if (location.startsWith(RouteNames.menu) ||
         location.startsWith(RouteNames.chat) ||
-        location.startsWith(RouteNames.routine)) {
+        location.startsWith(RouteNames.routine) ||
+        location.startsWith(RouteNames.reportStart)) {
       return 1;
     }
 

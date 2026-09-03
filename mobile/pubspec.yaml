@@ -36,6 +36,7 @@ flutter:
     - assets/images/onboarding/
     - assets/images/logo/
     - assets/images/auri/
+    - assets/images/report_images/
 
   fonts:
     - family: BeVietnamPro

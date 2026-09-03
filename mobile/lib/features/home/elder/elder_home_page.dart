@@ -293,12 +293,7 @@ class ElderHomePage extends ConsumerWidget {
                       illustration: actionIllustration(),
                       illustrationSize: sizes.xxl * 2,
                       actionLabel: 'Denuncie!',
-                      onPressed: () {
-                        _showUnavailableMessage(
-                          context,
-                          'A central de denúncias será disponibilizada em breve.',
-                        );
-                      },
+                      onPressed: () => context.go(RouteNames.reportStart),
                       layout: ActionCardLayout.textFirst,
                       showIllustrationBackground: false,
                     ),

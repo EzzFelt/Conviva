@@ -150,5 +150,29 @@ service cloud.firestore {
         signedIn() &&
         request.auth.uid == resource.data.familiarId;
     }
+
+    match /reports/{reportId} {
+      allow create: if signedIn() &&
+        request.resource.data.reportId == reportId &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.institutionId ==
+          get(
+            /databases/$(database)/documents/users/$(request.auth.uid)
+          ).data.institutionId &&
+        request.resource.data.reporterType in ['idoso', 'family', 'caregiver'] &&
+        request.resource.data.targetType in ['personal', 'third_party'] &&
+        request.resource.data.description is string &&
+        request.resource.data.isRecent is bool &&
+        request.resource.data.isRecurrent is bool &&
+        request.resource.data.offenderType in ['parent', 'caregiver', 'institution'] &&
+        request.resource.data.offenderId is string &&
+        request.resource.data.offenderName is string &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.createdAt is timestamp;
+
+      allow read: if signedIn() &&
+        resource.data.reporterId == request.auth.uid;
+      allow update, delete: if false;
+    }
   }
 }

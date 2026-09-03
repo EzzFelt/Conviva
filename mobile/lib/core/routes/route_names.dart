@@ -19,6 +19,12 @@ class RouteNames {
   static const routine = '/routine';
   static const profile = '/profile';
   static const settings = '/settings';
+  static const reportStart = '/reports';
+  static const reportType = '/reports/type';
+  static const reportForm = '/reports/form';
+  static const reportOffenderChoice = '/reports/offender';
+  static const reportSelectPerson = '/reports/person';
+  static const reportSuccess = '/reports/success';
 
   static String chatConversationPath(String conversationId) {
     return '/chat/${Uri.encodeComponent(conversationId)}';
