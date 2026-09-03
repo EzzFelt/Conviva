@@ -18,6 +18,7 @@ import '../../features/onboarding/pages/splash_page.dart';
 import '../../features/profile/pages/profile_page.dart';
 import '../../features/routine/pages/routine_page.dart';
 import '../../features/settings/pages/settings_page.dart';
+import '../../features/auri/pages/auri_page.dart';
 import '../../shared/widgets/main_navigation_shell.dart';
 import 'route_names.dart';
 
@@ -36,70 +37,48 @@ class AppRouter {
         pageBuilder: (context, state) {
           final arguments =
               state.extra as OnboardingArguments? ??
-                  const OnboardingArguments();
+              const OnboardingArguments();
 
           return CustomTransitionPage(
             key: state.pageKey,
             child: OnboardingPage(arguments: arguments),
-            transitionsBuilder: (
-              context,
-              animation,
-              secondaryAnimation,
-              child,
-            ) {
-              return FadeTransition(
-                opacity: animation,
-                child: child,
-              );
-            },
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
           );
         },
       ),
       GoRoute(
         path: RouteNames.register,
         redirect: (context, state) {
-          return state.extra is AuthArguments
-              ? null
-              : RouteNames.onboarding;
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
         },
         builder: (context, state) {
-          return RegisterPage(
-            arguments: state.extra as AuthArguments,
-          );
+          return RegisterPage(arguments: state.extra as AuthArguments);
         },
       ),
       GoRoute(
         path: RouteNames.login,
         redirect: (context, state) {
-          return state.extra is AuthArguments
-              ? null
-              : RouteNames.onboarding;
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
         },
         builder: (context, state) {
-          return LoginPage(
-            arguments: state.extra as AuthArguments,
-          );
+          return LoginPage(arguments: state.extra as AuthArguments);
         },
       ),
       GoRoute(
         path: RouteNames.elderLogin,
         redirect: (context, state) {
-          return state.extra is AuthArguments
-              ? null
-              : RouteNames.onboarding;
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
         },
         builder: (context, state) {
-          return ElderLoginPage(
-            arguments: state.extra as AuthArguments,
-          );
+          return ElderLoginPage(arguments: state.extra as AuthArguments);
         },
       ),
       ShellRoute(
         builder: (context, state, child) {
-          return MainNavigationShell(
-            location: state.uri.path,
-            child: child,
-          );
+          return MainNavigationShell(location: state.uri.path, child: child);
         },
         routes: [
           GoRoute(
@@ -117,9 +96,7 @@ class AppRouter {
                   ? state.extra! as Map<String, dynamic>
                   : <String, dynamic>{};
 
-              return CaregiverHomePage(
-                caregiverData: caregiverData,
-              );
+              return CaregiverHomePage(caregiverData: caregiverData);
             },
           ),
           GoRoute(
@@ -159,6 +136,10 @@ class AppRouter {
           GoRoute(
             path: RouteNames.settings,
             builder: (context, state) => const SettingsPage(),
+          ),
+          GoRoute(
+            path: RouteNames.auri,
+            builder: (context, state) => const AuriPage(),
           ),
         ],
       ),
