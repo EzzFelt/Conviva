@@ -36,6 +36,7 @@ List<MenuItemModel> menuItemsForAccount(AccountType accountType) {
         title: 'Assistente Virtual',
         description: 'Responda suas dúvidas rapidamente com o Auri.',
         icon: Icons.smart_toy_rounded,
+        route: RouteNames.auri,
       ),
       MenuItemModel(
         title: 'Central de Denúncias',
