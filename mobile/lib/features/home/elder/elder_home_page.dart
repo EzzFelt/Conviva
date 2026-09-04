@@ -277,10 +277,7 @@ class ElderHomePage extends ConsumerWidget {
                       imageSemanticLabel: 'Assistente virtual Auri',
                       actionLabel: 'Comece agora!',
                       onPressed: () {
-                        _showUnavailableMessage(
-                          context,
-                          'O assistente virtual será disponibilizado em breve.',
-                        );
+                        context.go(RouteNames.auri);
                       },
                     ),
                     SizedBox(height: sizes.xxl),

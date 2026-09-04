@@ -20,6 +20,7 @@ class RouteNames {
   static const routineDetail = '/routine/:elderId';
   static const profile = '/profile';
   static const settings = '/settings';
+  static const auri = '/auri';
 
   static String chatConversationPath(String conversationId) {
     return '/chat/${Uri.encodeComponent(conversationId)}';

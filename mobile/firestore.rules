@@ -215,6 +215,14 @@ service cloud.firestore {
         request.auth.uid == resource.data.familiarId;
     }
 
+    match /auriChats/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+
+      match /messages/{messageId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
     match /routines/{elderId} {
       function validRoutineDocument() {
         return request.resource.data.elderId == elderId &&
