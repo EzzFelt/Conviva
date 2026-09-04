@@ -123,10 +123,7 @@ service cloud.firestore {
           request.resource.data.institutionId == currentUser().institutionId;
       }
 
-      allow get: if !exists(
-        /databases/$(database)/documents/chats/$(chatId)
-      ) || isChatParticipant();
-      allow list: if isChatParticipant();
+      allow get, list: if isChatParticipant();
       allow create: if isChatParticipantOnCreate() &&
         request.resource.data.chatId == chatId &&
         request.resource.data.participants.size() == 2 &&
@@ -148,9 +145,7 @@ service cloud.firestore {
             ).data.institutionId == currentUser().institutionId;
         }
 
-        allow get, list: if !exists(
-          /databases/$(database)/documents/chats/$(chatId)
-        ) || isParentChatParticipant();
+        allow get, list: if isParentChatParticipant();
         allow create: if isParentChatParticipant() &&
           request.resource.data.messageId == messageId &&
           request.resource.data.senderId == request.auth.uid &&
@@ -159,8 +154,12 @@ service cloud.firestore {
           request.resource.data.readBy is list &&
           request.resource.data.createdAt is timestamp;
         allow update: if isParentChatParticipant() &&
-          request.resource.data.senderId == resource.data.senderId &&
-          request.resource.data.messageId == resource.data.messageId &&
+          request.resource.data
+            .diff(resource.data)
+            .affectedKeys()
+            .hasOnly(['readBy']) &&
+          request.resource.data.readBy is list &&
+          request.resource.data.readBy.hasAll(resource.data.readBy) &&
           request.resource.data.readBy.hasOnly(
             resource.data.readBy.concat([request.auth.uid])
           );
@@ -234,8 +233,18 @@ service cloud.firestore {
           request.resource.data.updatedAt is timestamp;
       }
 
+      function validInitialRoutinePermissions() {
+        return currentUser().type == 'caregiver' ||
+          (
+            request.resource.data.canElderCreateTasks == true &&
+            request.resource.data.canElderEditOwnTasks == true
+          );
+      }
+
       allow read: if canAccessElder(elderId);
-      allow create: if canAccessElder(elderId) && validRoutineDocument();
+      allow create: if canAccessElder(elderId) &&
+        validRoutineDocument() &&
+        validInitialRoutinePermissions();
       allow update: if canAccessElder(elderId) &&
         currentUser().type == 'caregiver' &&
         request.resource.data.elderId == resource.data.elderId &&
