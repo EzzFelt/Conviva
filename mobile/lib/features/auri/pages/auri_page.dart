@@ -7,6 +7,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/assets_paths.dart';
+import '../../../core/routes/route_names.dart';
 import '../../auth/providers/current_user_provider.dart';
 import '../providers/auri_provider.dart';
 
@@ -144,7 +145,13 @@ class _AuriPageState extends ConsumerState<AuriPage> {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => context.pop(),
+            onPressed: () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go(RouteNames.elderHome);
+              }
+            },
             icon: const Icon(Icons.arrow_back, color: Colors.white),
           ),
           const Spacer(),

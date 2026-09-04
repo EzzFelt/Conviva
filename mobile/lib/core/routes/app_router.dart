@@ -6,6 +6,7 @@ import '../../features/auth/pages/elder_login_page.dart';
 import '../../features/auth/pages/family_link_page.dart';
 import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
+import '../../features/auri/pages/auri_page.dart';
 import '../../features/chat/pages/chat_page.dart';
 import '../../features/chat/pages/conversation_page.dart';
 import '../../features/home/caregiver/caregiver_home_page.dart';
@@ -16,18 +17,15 @@ import '../../features/onboarding/models/onboarding_arguments.dart';
 import '../../features/onboarding/pages/onboarding_page.dart';
 import '../../features/onboarding/pages/splash_page.dart';
 import '../../features/profile/pages/profile_page.dart';
-import '../../features/routine/pages/routine_page.dart';
-import '../../features/settings/pages/settings_page.dart';
-import '../../features/auri/pages/auri_page.dart';
-import '../../shared/widgets/main_navigation_shell.dart';
-
-import '../../features/reports/pages/report_start_page.dart';
+import '../../features/reports/models/report_draft.dart';
 import '../../features/reports/pages/report_form_page.dart';
 import '../../features/reports/pages/report_offender_choice_page.dart';
 import '../../features/reports/pages/report_select_person_page.dart';
+import '../../features/reports/pages/report_start_page.dart';
 import '../../features/reports/pages/report_success_page.dart';
-import '../../features/reports/models/report_draft.dart';
-
+import '../../features/routine/pages/routine_page.dart';
+import '../../features/settings/pages/settings_page.dart';
+import '../../shared/widgets/main_navigation_shell.dart';
 import 'route_names.dart';
 
 class AppRouter {
@@ -80,13 +78,10 @@ class AppRouter {
         redirect: (context, state) {
           return state.extra is AuthArguments ? null : RouteNames.onboarding;
         },
+        builder: (context, state) {
+          return ElderLoginPage(arguments: state.extra as AuthArguments);
+        },
       ),
-      
-      GoRoute(
-        path: RouteNames.familyLink,
-              builder: (context, state) => const FamilyLinkPage(),
-      ),
-
       GoRoute(
         path: RouteNames.reportStart,
         builder: (context, state) => const ReportStartPage(),
@@ -95,37 +90,33 @@ class AppRouter {
       GoRoute(
         path: RouteNames.reportForm,
         builder: (context, state) {
-          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : null;
+          final draft = state.extra is ReportDraft
+              ? state.extra as ReportDraft
+              : null;
           return ReportFormPage(initialDraft: draft);
         },
       ),
-
       GoRoute(
         path: RouteNames.reportOffenderChoice,
         builder: (context, state) {
-          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : const ReportDraft();
+          final draft = state.extra is ReportDraft
+              ? state.extra as ReportDraft
+              : const ReportDraft();
           return ReportOffenderChoicePage(draft: draft);
         },
       ),
-
       GoRoute(
         path: RouteNames.reportSelectPerson,
         builder: (context, state) {
-          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : const ReportDraft();
+          final draft = state.extra is ReportDraft
+              ? state.extra as ReportDraft
+              : const ReportDraft();
           return ReportSelectPersonPage(draft: draft);
         },
       ),
-
       GoRoute(
         path: RouteNames.reportSuccess,
         builder: (context, state) => const ReportSuccessPage(),
-      ),
-
-      GoRoute(
-        path: RouteNames.elderHome,
-        builder: (context, state) {
-          return ElderLoginPage(arguments: state.extra as AuthArguments);
-        },
       ),
       ShellRoute(
         builder: (context, state, child) {

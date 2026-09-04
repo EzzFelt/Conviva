@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../widgets/report_type_card.dart';
+import '../widgets/report_flow_scaffold.dart';
 import '../models/report_draft.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
@@ -13,10 +14,9 @@ class ReportStartPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final sizes = context.appSizes;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Denuncie'),
-      ),
+    return ReportFlowScaffold(
+      step: 0,
+      showProgress: false,
       body: Padding(
         padding: EdgeInsets.all(sizes.lg),
         child: Column(

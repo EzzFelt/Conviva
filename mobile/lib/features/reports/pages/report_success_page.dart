@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/report_flow_scaffold.dart';
 import '../../../core/constants/app_sizes.dart';
+import '../../../core/constants/assets_paths.dart';
 import '../../../core/routes/route_names.dart';
+import '../widgets/report_flow_scaffold.dart';
 
 class ReportSuccessPage extends StatelessWidget {
   const ReportSuccessPage({super.key});
@@ -25,7 +26,10 @@ class ReportSuccessPage extends StatelessWidget {
             SizedBox(height: sizes.xxl),
             Expanded(
               child: Center(
-                child: Image.asset('assets/images/report_images/elders.png', fit: BoxFit.contain),
+                child: Image.asset(
+                  AssetPaths.reportSuccess,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
             ElevatedButton(

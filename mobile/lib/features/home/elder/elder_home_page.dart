@@ -181,12 +181,6 @@ class ElderHomePage extends ConsumerWidget {
     );
   }
 
-  void _showUnavailableMessage(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   Widget _homeContent(
     BuildContext context,
     WidgetRef ref,
@@ -291,10 +285,7 @@ class ElderHomePage extends ConsumerWidget {
                       illustrationSize: sizes.xxl * 2,
                       actionLabel: 'Denuncie!',
                       onPressed: () {
-                        _showUnavailableMessage(
-                          context,
-                          'A central de denúncias será disponibilizada em breve.',
-                        );
+                        context.go(RouteNames.reportStart);
                       },
                       layout: ActionCardLayout.textFirst,
                       showIllustrationBackground: false,

@@ -11,7 +11,7 @@ class AuriService {
             apiKey: const String.fromEnvironment('GEMINI_API_KEY'),
           ),
       _fallbackModel = GenerativeModel(
-        model: 'gemini-1.5-pro',
+        model: 'gemini-3.5-flash',
         apiKey: const String.fromEnvironment('GEMINI_API_KEY'),
       );
 
@@ -38,6 +38,14 @@ class AuriService {
   Future<void> ask({required String userId, required String question}) async {
     final normalizedQuestion = question.trim();
     if (normalizedQuestion.isEmpty) return;
+
+    final apiKey = const String.fromEnvironment('GEMINI_API_KEY');
+    if (apiKey.trim().isEmpty) {
+      throw StateError(
+        'A chave do Gemini não foi configurada. '
+        'Execute com --dart-define=GEMINI_API_KEY=SUA_CHAVE.',
+      );
+    }
 
     final chat = _firestore.collection('auriChats').doc(userId);
     final messages = chat.collection('messages');
@@ -66,14 +74,6 @@ class AuriService {
     // Keep the assistant guidance in the request history for compatibility
     // with API versions that do not accept a systemInstruction parameter.
     history.insert(0, Content.text(_systemInstruction));
-
-    final apiKey = const String.fromEnvironment('GEMINI_API_KEY');
-    if (apiKey.trim().isEmpty) {
-      throw StateError(
-        'A chave do Gemini não foi configurada. '
-        'Execute com --dart-define=GEMINI_API_KEY=SUA_CHAVE.',
-      );
-    }
 
     late final GenerateContentResponse response;
     try {

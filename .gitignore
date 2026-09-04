@@ -78,6 +78,9 @@ mobile/lib/generated/
 # Coverage
 mobile/coverage/
 
+# Gemini API Key (will be added later with proper security)
+mobile/gemini_env.json
+
 # IDE
 mobile/.idea/
 mobile/.vscode/

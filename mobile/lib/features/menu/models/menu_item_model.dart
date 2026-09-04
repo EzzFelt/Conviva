@@ -36,12 +36,14 @@ List<MenuItemModel> menuItemsForAccount(AccountType accountType) {
           title: 'Assistente Virtual',
           description: 'Responda suas dúvidas rapidamente com o Auri.',
           icon: Icons.smart_toy_rounded,
+          route: RouteNames.auri,
         ),
         MenuItemModel(
           title: 'Central de Denúncias',
           description:
               'Faça uma denúncia anônima pessoal ou de terceiros.',
           icon: Icons.report_rounded,
+          route: RouteNames.reportStart,
         ),
       ],
     AccountType.caregiver => const [

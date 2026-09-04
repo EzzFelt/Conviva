@@ -104,10 +104,21 @@ class ReportFlowScaffold extends StatelessWidget {
       ),
       bottomNavigationBar: showNavigationBar
           ? MainNavigationBar(
-              currentIndex: 1,
+              currentIndex: 0,
               onDestinationSelected: (index) {
-                if (index == 0) {
-                  context.go(RouteNames.elderHome);
+                switch (index) {
+                  case 0:
+                    context.go(RouteNames.elderHome);
+                    return;
+                  case 1:
+                    context.go(RouteNames.menu);
+                    return;
+                  case 2:
+                    context.go(RouteNames.profile);
+                    return;
+                  case 3:
+                    context.go(RouteNames.settings);
+                    return;
                 }
               },
             )

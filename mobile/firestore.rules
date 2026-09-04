@@ -123,7 +123,12 @@ service cloud.firestore {
           request.resource.data.institutionId == currentUser().institutionId;
       }
 
-      allow get, list: if isChatParticipant();
+      // O app consulta o ID determinístico antes de criar a conversa.
+      // Ler um documento inexistente não expõe dados e evita permission-denied.
+      allow get: if !exists(
+        /databases/$(database)/documents/chats/$(chatId)
+      ) || isChatParticipant();
+      allow list: if isChatParticipant();
       allow create: if isChatParticipantOnCreate() &&
         request.resource.data.chatId == chatId &&
         request.resource.data.participants.size() == 2 &&
@@ -145,7 +150,9 @@ service cloud.firestore {
             ).data.institutionId == currentUser().institutionId;
         }
 
-        allow get, list: if isParentChatParticipant();
+        allow get, list: if !exists(
+          /databases/$(database)/documents/chats/$(chatId)
+        ) || isParentChatParticipant();
         allow create: if isParentChatParticipant() &&
           request.resource.data.messageId == messageId &&
           request.resource.data.senderId == request.auth.uid &&
