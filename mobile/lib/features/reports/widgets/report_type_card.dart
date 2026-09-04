@@ -56,11 +56,7 @@ class ReportTypeCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const Positioned(
-                right: 0,
-                bottom: 0,
-                child: GotoButtonWidget(),
-              ),
+              const Positioned(right: 0, bottom: 0, child: GotoButtonWidget()),
             ],
           ),
         ),

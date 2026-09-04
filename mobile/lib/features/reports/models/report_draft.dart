@@ -1,3 +1,5 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 class MockReportedPerson {
   const MockReportedPerson({
     required this.id,
@@ -14,16 +16,9 @@ class MockReportedPerson {
   final String? imageAsset;
 }
 
-enum ReportKind {
-  personal,
-  thirdParty,
-}
+enum ReportKind { personal, thirdParty }
 
-enum OffenderKind {
-  relative,
-  caregiver,
-  institution,
-}
+enum OffenderKind { relative, caregiver, institution }
 
 class ReportDraft {
   const ReportDraft({
@@ -76,6 +71,19 @@ class ReportDraft {
       otherInstitute: otherInstitute ?? this.otherInstitute,
     );
   }
+}
+
+final reportDraftProvider = NotifierProvider<ReportDraftNotifier, ReportDraft>(
+  ReportDraftNotifier.new,
+);
+
+class ReportDraftNotifier extends Notifier<ReportDraft> {
+  @override
+  ReportDraft build() => const ReportDraft();
+
+  void update(ReportDraft draft) => state = draft;
+
+  void reset() => state = const ReportDraft();
 }
 
 class MockReportData {

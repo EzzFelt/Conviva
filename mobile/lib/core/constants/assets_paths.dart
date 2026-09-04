@@ -17,6 +17,14 @@ class AssetPaths {
   // Auri
   static const auri = 'assets/images/auri/auri.png';
 
-  // Reports
-  static const reportSuccess = 'assets/images/report_success_illustration.png';
+  // Central de Denúncias
+  static const reportEmergency = 'assets/images/report_images/911_woman.png';
+  static const reportRelative =
+      'assets/images/report_images/elder_and_familiar.png';
+  static const reportCaregiver =
+      'assets/images/report_images/elder_and_caregiver.png';
+  static const reportInstitution = 'assets/images/report_images/city.png';
+  static const reportSuccess = 'assets/images/report_images/elders.png';
+  static const legacyReportSuccess =
+      'assets/images/report_success_illustration.png';
 }

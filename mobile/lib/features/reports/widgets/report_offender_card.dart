@@ -30,10 +30,7 @@ class ReportOffenderCard extends StatelessWidget {
       shadowColor: colorScheme.shadow.withValues(alpha: .18),
       shape: RoundedRectangleBorder(
         borderRadius: borderRadius,
-        side: BorderSide(
-          color: borderColor,
-          width: selected ? 2 : 1,
-        ),
+        side: BorderSide(color: borderColor, width: selected ? 2 : 1),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

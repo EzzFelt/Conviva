@@ -1,95 +1,108 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/report_draft.dart';
+import '../providers/reports_provider.dart';
 import '../widgets/report_flow_scaffold.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
+import '../../auth/providers/current_user_provider.dart';
 
-class ReportSelectPersonPage extends StatefulWidget {
+class ReportSelectPersonPage extends ConsumerStatefulWidget {
   final ReportDraft draft;
   const ReportSelectPersonPage({super.key, required this.draft});
 
   @override
-  State<ReportSelectPersonPage> createState() => _ReportSelectPersonPageState();
+  ConsumerState<ReportSelectPersonPage> createState() =>
+      _ReportSelectPersonPageState();
 }
 
-class _ReportSelectPersonPageState extends State<ReportSelectPersonPage> {
+class _ReportSelectPersonPageState
+    extends ConsumerState<ReportSelectPersonPage> {
+  ReportTarget? _selectedTarget;
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final sizes = context.appSizes;
     final offender = widget.draft.offender;
 
-    List<MockReportedPerson> persons;
-    if (offender == OffenderKind.caregiver) {
-      persons = MockReportData.caregivers;
-    } else if (offender == OffenderKind.relative) {
-      persons = MockReportData.relatives;
-    } else {
-      // Institution selected - show institution as single option and also an "Other" form
-      persons = [MockReportData.institution];
+    if (offender == null) {
+      return const ReportFlowScaffold(
+        step: 5,
+        body: Center(child: Text('Tipo de acusado não informado.')),
+      );
     }
 
     return ReportFlowScaffold(
-      step: 3,
+      step: 5,
       useGradient: offender == OffenderKind.caregiver,
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(sizes.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              offender == OffenderKind.caregiver
-                  ? 'Selecione o cuidador:'
-                  : offender == OffenderKind.relative
-                      ? 'Selecione o parente:'
-                      : 'Selecione a instituição:',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-            SizedBox(height: sizes.md),
-            ...persons.map(
-              (p) => Padding(
-                padding: EdgeInsets.symmetric(vertical: sizes.xs),
-                child: Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(sizes.lg),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          child: p.imageAsset != null ? Image.asset(p.imageAsset!) : null,
-                        ),
-                        SizedBox(width: sizes.lg),
-                        Expanded(
-                          child: Text(p.name, style: Theme.of(context).textTheme.titleMedium),
-                        ),
-                        TextButton(
-                          onPressed: () => _confirmPerson(p),
-                          child: const Text('Selecionar'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (offender == OffenderKind.institution) ...[
-              SizedBox(height: sizes.lg),
-              Text('Outro (escreva o que você conseguir):', style: Theme.of(context).textTheme.titleMedium),
-              SizedBox(height: sizes.sm),
-              TextField(decoration: const InputDecoration(hintText: 'Nome do cuidador')),
-              SizedBox(height: sizes.sm),
-              TextField(decoration: const InputDecoration(hintText: 'Telefone')),
-              SizedBox(height: sizes.sm),
-              TextField(decoration: const InputDecoration(hintText: 'Instituto')),
-            ],
-            SizedBox(height: sizes.xxl),
-          ],
-        ),
+      body: Consumer(
+        builder: (context, ref, child) {
+          final targets = ref.watch(reportTargetsProvider(offender));
+          return targets.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (error, _) =>
+                Center(child: Text('Erro ao carregar alvos: $error')),
+            data: (items) => _buildTargets(context, items, sizes),
+          );
+        },
+      ),
+      bottomButton: ElevatedButton(
+        onPressed: _selectedTarget == null
+            ? null
+            : () => _confirmTarget(_selectedTarget!),
+        child: const Text('Continuar'),
       ),
     );
   }
 
-  void _confirmPerson(MockReportedPerson person) async {
+  Widget _buildTargets(
+    BuildContext context,
+    List<ReportTarget> targets,
+    AppSizesTheme sizes,
+  ) {
+    if (targets.isEmpty) {
+      return const Center(child: Text('Nenhum alvo disponível para denúncia.'));
+    }
+    return ListView(
+      padding: EdgeInsets.all(sizes.lg),
+      children: [
+        Text(
+          'Selecione o acusado:',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        SizedBox(height: sizes.md),
+        ...targets.map(
+          (target) => Card(
+            child: ListTile(
+              leading: _targetAvatar(target),
+              title: Text(target.name),
+              trailing: TextButton(
+                onPressed: () => setState(() => _selectedTarget = target),
+                child: const Text('Selecionar'),
+              ),
+              selected: _selectedTarget?.id == target.id,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _targetAvatar(ReportTarget target) {
+    if (target.photoUrl == null) {
+      return const CircleAvatar(child: Icon(Icons.person));
+    }
+    return CircleAvatar(backgroundImage: NetworkImage(target.photoUrl!));
+  }
+
+  Future<void> _confirmTarget(ReportTarget target) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -98,22 +111,62 @@ class _ReportSelectPersonPageState extends State<ReportSelectPersonPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(radius: 36, child: person.imageAsset != null ? Image.asset(person.imageAsset!) : null),
+            CircleAvatar(
+              radius: 36,
+              backgroundImage: target.photoUrl == null
+                  ? null
+                  : NetworkImage(target.photoUrl!),
+              child: target.photoUrl == null ? const Icon(Icons.person) : null,
+            ),
             SizedBox(height: 12),
-            Text(person.name, style: Theme.of(context).textTheme.titleMedium),
+            Text(target.name, style: Theme.of(context).textTheme.titleMedium),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Confirmar')),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Confirmar'),
+          ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      // In a real app, here we would submit to backend. For mock flow, navigate to success.
-      if (!mounted) return;
-      context.go(RouteNames.reportSuccess);
+      final session = await ref.read(currentUserProvider.future);
+      if (session == null || !mounted) return;
+
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      try {
+        await submitReport(
+          draft: widget.draft,
+          target: target,
+          session: session,
+        );
+        if (!mounted) return;
+        Navigator.of(context, rootNavigator: true).pop();
+        ref
+            .read(reportDraftProvider.notifier)
+            .update(
+              widget.draft.copyWith(
+                person: MockReportedPerson(id: target.id, name: target.name),
+              ),
+            );
+        context.go(RouteNames.reportSuccess);
+      } catch (error) {
+        if (!mounted) return;
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível salvar a denúncia: $error')),
+        );
+      }
     }
   }
 }

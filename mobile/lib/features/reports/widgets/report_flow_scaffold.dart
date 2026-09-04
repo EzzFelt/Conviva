@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
-import '../../../shared/widgets/main_navigation_bar.dart';
 import 'report_progress_bar.dart';
 
 class ReportFlowScaffold extends StatelessWidget {
@@ -14,18 +13,16 @@ class ReportFlowScaffold extends StatelessWidget {
     this.bottomButton,
     this.useGradient = false,
     this.showProgress = true,
-    this.showNavigationBar = true,
     this.backColor,
   });
 
-  static const totalSteps = 6;
+  static const totalSteps = 7;
 
   final int step;
   final Widget body;
   final Widget? bottomButton;
   final bool useGradient;
   final bool showProgress;
-  final bool showNavigationBar;
   final Color? backColor;
 
   @override
@@ -50,7 +47,7 @@ class ReportFlowScaffold extends StatelessWidget {
           color: useGradient ? null : colorScheme.surface,
         ),
         child: SafeArea(
-          bottom: !showNavigationBar,
+          bottom: true,
           child: Column(
             children: [
               Padding(
@@ -82,10 +79,7 @@ class ReportFlowScaffold extends StatelessWidget {
               if (showProgress)
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: sizes.lg),
-                  child: ReportProgressBar(
-                    step: step,
-                    totalSteps: totalSteps,
-                  ),
+                  child: ReportProgressBar(step: step, totalSteps: totalSteps),
                 ),
               Expanded(child: body),
               if (bottomButton != null)
@@ -102,27 +96,6 @@ class ReportFlowScaffold extends StatelessWidget {
           ),
         ),
       ),
-      bottomNavigationBar: showNavigationBar
-          ? MainNavigationBar(
-              currentIndex: 0,
-              onDestinationSelected: (index) {
-                switch (index) {
-                  case 0:
-                    context.go(RouteNames.elderHome);
-                    return;
-                  case 1:
-                    context.go(RouteNames.menu);
-                    return;
-                  case 2:
-                    context.go(RouteNames.profile);
-                    return;
-                  case 3:
-                    context.go(RouteNames.settings);
-                    return;
-                }
-              },
-            )
-          : null,
     );
   }
 }

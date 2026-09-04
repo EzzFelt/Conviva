@@ -1,49 +1,79 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../widgets/report_type_card.dart';
-import '../widgets/report_flow_scaffold.dart';
-import '../models/report_draft.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/constants/assets_paths.dart';
+import '../models/report_draft.dart';
+import '../widgets/report_flow_scaffold.dart';
 
-class ReportStartPage extends StatelessWidget {
+class ReportStartPage extends ConsumerWidget {
   const ReportStartPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final sizes = context.appSizes;
 
     return ReportFlowScaffold(
-      step: 0,
+      step: 1,
       showProgress: false,
       body: Padding(
-        padding: EdgeInsets.all(sizes.lg),
+        padding: EdgeInsets.symmetric(horizontal: sizes.lg),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text(
-              'Que tipo de denúncia deseja fazer?',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            Text.rich(
+              TextSpan(
+                text: 'Bem vindo a ',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                ),
+                children: const [
+                  TextSpan(
+                    text: 'Central de\nDenúncias!',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFFFF7A1A),
+                    ),
+                  ),
+                ],
+              ),
+              textAlign: TextAlign.center,
             ),
-            SizedBox(height: sizes.lg),
-            ReportTypeCard(
-              title: 'É sobre você',
-              description: 'Relate algo que aconteceu com você',
-              onTap: () {
-                final draft = ReportDraft(kind: ReportKind.personal);
-                context.go(RouteNames.reportForm, extra: draft);
-              },
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.only(top: sizes.xl, bottom: sizes.md),
+                  child: Image.asset(
+                    AssetPaths.reportEmergency,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
             ),
             SizedBox(height: sizes.md),
-            ReportTypeCard(
-              title: 'É sobre outra pessoa',
-              description: 'Relate algo que aconteceu com outra pessoa',
-              onTap: () {
-                final draft = ReportDraft(kind: ReportKind.thirdParty);
-                context.go(RouteNames.reportForm, extra: draft);
-              },
+            SizedBox(
+              width: 220,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF7A1A),
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(220, 52),
+                  textStyle: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onPressed: () {
+                  ref.read(reportDraftProvider.notifier).reset();
+                  context.go(RouteNames.reportType);
+                },
+                child: const Text('Continuar'),
+              ),
             ),
+            SizedBox(height: sizes.lg),
           ],
         ),
       ),

@@ -21,6 +21,12 @@ class RouteNames {
   static const profile = '/profile';
   static const settings = '/settings';
   static const auri = '/auri';
+  static const reportStart = '/reports';
+  static const reportType = '/reports/type';
+  static const reportForm = '/reports/form';
+  static const reportOffenderChoice = '/reports/offender';
+  static const reportSelectPerson = '/reports/person';
+  static const reportSuccess = '/reports/success';
 
   static String chatConversationPath(String conversationId) {
     return '/chat/${Uri.encodeComponent(conversationId)}';
@@ -29,10 +35,4 @@ class RouteNames {
   static String routinePath(String elderId) {
     return '/routine/${Uri.encodeComponent(elderId)}';
   }
-  // Reports
-  static const reportStart = '/reports/start';
-  static const reportForm = '/reports/form';
-  static const reportOffenderChoice = '/reports/offender';
-  static const reportSelectPerson = '/reports/select-person';
-  static const reportSuccess = '/reports/success';
 }
