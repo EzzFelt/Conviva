@@ -29,4 +29,10 @@ class RouteNames {
   static String routinePath(String elderId) {
     return '/routine/${Uri.encodeComponent(elderId)}';
   }
+  // Reports
+  static const reportStart = '/reports/start';
+  static const reportForm = '/reports/form';
+  static const reportOffenderChoice = '/reports/offender';
+  static const reportSelectPerson = '/reports/select-person';
+  static const reportSuccess = '/reports/success';
 }

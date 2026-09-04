@@ -20,6 +20,14 @@ import '../../features/routine/pages/routine_page.dart';
 import '../../features/settings/pages/settings_page.dart';
 import '../../features/auri/pages/auri_page.dart';
 import '../../shared/widgets/main_navigation_shell.dart';
+
+import '../../features/reports/pages/report_start_page.dart';
+import '../../features/reports/pages/report_form_page.dart';
+import '../../features/reports/pages/report_offender_choice_page.dart';
+import '../../features/reports/pages/report_select_person_page.dart';
+import '../../features/reports/pages/report_success_page.dart';
+import '../../features/reports/models/report_draft.dart';
+
 import 'route_names.dart';
 
 class AppRouter {
@@ -72,6 +80,49 @@ class AppRouter {
         redirect: (context, state) {
           return state.extra is AuthArguments ? null : RouteNames.onboarding;
         },
+      ),
+      
+      GoRoute(
+        path: RouteNames.familyLink,
+              builder: (context, state) => const FamilyLinkPage(),
+      ),
+
+      GoRoute(
+        path: RouteNames.reportStart,
+        builder: (context, state) => const ReportStartPage(),
+      ),
+
+      GoRoute(
+        path: RouteNames.reportForm,
+        builder: (context, state) {
+          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : null;
+          return ReportFormPage(initialDraft: draft);
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.reportOffenderChoice,
+        builder: (context, state) {
+          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : const ReportDraft();
+          return ReportOffenderChoicePage(draft: draft);
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.reportSelectPerson,
+        builder: (context, state) {
+          final draft = state.extra is ReportDraft ? state.extra as ReportDraft : const ReportDraft();
+          return ReportSelectPersonPage(draft: draft);
+        },
+      ),
+
+      GoRoute(
+        path: RouteNames.reportSuccess,
+        builder: (context, state) => const ReportSuccessPage(),
+      ),
+
+      GoRoute(
+        path: RouteNames.elderHome,
         builder: (context, state) {
           return ElderLoginPage(arguments: state.extra as AuthArguments);
         },

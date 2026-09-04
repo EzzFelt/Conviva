@@ -16,4 +16,7 @@ class AssetPaths {
 
   // Auri
   static const auri = 'assets/images/auri/auri.png';
+
+  // Reports
+  static const reportSuccess = 'assets/images/report_success_illustration.png';
 }
