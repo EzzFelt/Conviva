@@ -1,4 +1,4 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +17,7 @@ import '../../onboarding/models/onboarding_arguments.dart';
 
 import '../models/account_type.dart';
 import '../models/auth_arguments.dart';
+import '../models/auth_error_message.dart';
 import '../models/auth_mode.dart';
 import '../providers/authenticated_user_navigator.dart';
 import '../providers/current_user_provider.dart';
@@ -43,6 +44,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _phoneController = TextEditingController();
   final _institutionController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _isLoading = false;
 
   @override
@@ -56,9 +58,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   }
 
   Future<void> _register() async {
+    if (_isLoading) return;
+
     FocusManager.instance.primaryFocus?.unfocus();
 
-    if (!(_formKey.currentState?.validate() ?? false) || _isLoading) {
+    if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
@@ -94,37 +98,21 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
       if (!mounted) return;
 
-      await AuthenticatedUserNavigator.open(context, result.session);
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-
-      String message;
-
-      switch (e.code) {
-        case 'email-already-in-use':
-          message = 'Este e-mail já está cadastrado.';
-          break;
-        case 'invalid-email':
-          message = 'Digite um e-mail válido.';
-          break;
-        case 'weak-password':
-          message = 'A senha deve ser mais forte.';
-          break;
-        default:
-          message = 'Erro ao cadastrar usuário: ${e.message}';
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
+      await AuthenticatedUserNavigator.open(
+        context,
+        result.session,
       );
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
+
+      final message = AuthErrorMessage.from(
+        error,
+        context: AuthErrorContext.register,
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            e.toString().replaceFirst('Exception: ', ''),
-          ),
+          content: Text(message),
         ),
       );
     } finally {
@@ -136,37 +124,97 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
   }
 
-  Future<void> _showElderAccessCode(String code) {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Código de acesso do idoso'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Guarde este código. Ele será usado para entrar na conta '
-                'e para o familiar realizar o vínculo.',
-              ),
-              SizedBox(height: dialogContext.appSizes.md),
-              SelectableText(
-                code,
-                style: Theme.of(dialogContext).textTheme.headlineSmall,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Entendi'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+    Future<void> _showElderAccessCode(String code) {
+      return showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          bool copied = false;
+          bool copyFailed = false;
+
+          return StatefulBuilder(
+            builder: (dialogStateContext, setDialogState) {
+              final theme = Theme.of(dialogStateContext);
+              final colorScheme = theme.colorScheme;
+              final sizes = dialogStateContext.appSizes;
+
+              return AlertDialog(
+                title: const Text('Código de acesso do idoso'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Guarde este código. Ele será usado para entrar na conta '
+                      'e para o familiar realizar o vínculo.',
+                    ),
+                    SizedBox(height: sizes.md),
+                    SelectableText(
+                      code,
+                      style: theme.textTheme.headlineSmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    SizedBox(height: sizes.md),
+                    if (copied)
+                      Text(
+                        'Código copiado com sucesso!',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.primary,
+                        ),
+                      )
+                    else if (copyFailed)
+                      Text(
+                        'Não foi possível copiar. Selecione o código '
+                        'manualmente.',
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.error,
+                        ),
+                      ),
+                  ],
+                ),
+                actions: [
+                  TextButton.icon(
+                    onPressed: () async {
+                      try {
+                        await Clipboard.setData(
+                          ClipboardData(text: code),
+                        );
+
+                        if (!dialogStateContext.mounted) return;
+
+                        setDialogState(() {
+                          copied = true;
+                          copyFailed = false;
+                        });
+                      } catch (_) {
+                        if (!dialogStateContext.mounted) return;
+
+                        setDialogState(() {
+                          copied = false;
+                          copyFailed = true;
+                        });
+                      }
+                    },
+                    icon: Icon(
+                      copied ? Icons.check : Icons.copy,
+                    ),
+                    label: Text(
+                      copied ? 'Copiado!' : 'Copiar código',
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Entendi'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    }
+
 
   String? _validateRequired(String? value, String message) {
     if (value == null || value.trim().isEmpty) {
@@ -184,6 +232,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
 
     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+
     if (!emailRegex.hasMatch(email)) {
       return 'Informe um e-mail válido';
     }
@@ -254,7 +303,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   SizedBox(height: sizes.xl),
 
                   const AuthHeaderWidget(
-                    title: 'Faça seu\ncadastro aqui!',
+                    title: 'Crie sua\nconta!',
                   ),
 
                   SizedBox(height: sizes.xl),
@@ -293,13 +342,18 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     hintText: 'Número de telefone',
                     enabled: !_isLoading,
                     keyboardType: TextInputType.phone,
-                    inputFormatters: const [BrazilianPhoneFormatter()],
+                    inputFormatters: const [
+                      BrazilianPhoneFormatter(),
+                    ],
                     textInputAction: TextInputAction.next,
                     validator: _validatePhone,
-                    autofillHints: const [AutofillHints.telephoneNumber],
+                    autofillHints: const [
+                      AutofillHints.telephoneNumber,
+                    ],
                   ),
 
                   SizedBox(height: sizes.md),
+
                   TextFieldWidget(
                     controller: _institutionController,
                     hintText: accountType == AccountType.elder
@@ -314,13 +368,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   ),
 
                   SizedBox(height: sizes.md),
+
                   PasswordTextFieldWidget(
                     controller: _passwordController,
                     enabled: !_isLoading,
                     textInputAction: TextInputAction.done,
                     validator: _validatePassword,
                     onFieldSubmitted: (_) => _register(),
-                    autofillHints: const [AutofillHints.newPassword],
+                    autofillHints: const [
+                      AutofillHints.newPassword,
+                    ],
                   ),
 
                   SizedBox(height: sizes.xl),

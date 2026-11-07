@@ -24,7 +24,7 @@ class SettingsAdjustmentButtonsWidget extends StatelessWidget {
         Expanded(
           child: ButtonWidget(
             label: 'Aumentar',
-            size: ButtonSize.small,
+            size: ButtonSize.medium,
             variant: ButtonVariant.secondary,
             onPressed: onIncrease,
           ),
@@ -39,7 +39,7 @@ class SettingsAdjustmentButtonsWidget extends StatelessWidget {
             ),
             child: ButtonWidget(
               label: 'Diminuir',
-              size: ButtonSize.small,
+              size: ButtonSize.medium,
               variant: ButtonVariant.outlined,
               onPressed: onDecrease,
             ),

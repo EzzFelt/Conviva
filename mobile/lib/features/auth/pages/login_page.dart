@@ -1,8 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/auth_error_message.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
 
@@ -68,28 +68,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
       if (!mounted) return;
       await AuthenticatedUserNavigator.open(context, session);
-    } on FirebaseAuthException catch (error) {
+      } catch (error) {
       if (!mounted) return;
 
-      final message = switch (error.code) {
-        'invalid-credential' ||
-        'user-not-found' ||
-        'wrong-password' => 'E-mail ou senha incorretos.',
-        'invalid-email' => 'Informe um e-mail válido.',
-        'user-disabled' => 'Esta conta foi desativada.',
-        'too-many-requests' =>
-          'Muitas tentativas. Aguarde um pouco e tente novamente.',
-        _ => 'Não foi possível entrar. Tente novamente.',
-      };
+      final message = AuthErrorMessage.from(
+        error,
+        context: AuthErrorContext.login,
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
-      );
-    } catch (error) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_errorMessage(error))),
       );
     } finally {
       if (mounted) {
@@ -121,13 +109,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
 
     return null;
-  }
-
-  String _errorMessage(Object error) {
-    return error
-        .toString()
-        .replaceFirst('Exception: ', '')
-        .replaceFirst('Bad state: ', '');
   }
 
   @override

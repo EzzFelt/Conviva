@@ -14,27 +14,31 @@ class ReportTypePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sizes = context.appSizes;
+
     return ReportFlowScaffold(
       step: 2,
-      body: Padding(
+      fallbackRoute: RouteNames.reportStart,
+      body: SingleChildScrollView(
         padding: EdgeInsets.all(sizes.lg),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            SizedBox(height: sizes.lg),
             Text(
-              'Que tipo de denúncia deseja fazer?',
-              style: Theme.of(context).textTheme.headlineSmall,
+              'Essa denúncia é:',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            SizedBox(height: sizes.xl),
+            ReportTypeCard(
+              title: 'Pessoal',
+              description: 'Você é a pessoa que está sendo alvo da situação',
+              onTap: () => _select(context, ref, ReportKind.personal),
             ),
             SizedBox(height: sizes.lg),
             ReportTypeCard(
-              title: 'Pessoal',
-              description: 'Relate algo que aconteceu com você.',
-              onTap: () => _select(context, ref, ReportKind.personal),
-            ),
-            SizedBox(height: sizes.md),
-            ReportTypeCard(
-              title: 'De terceiros',
-              description: 'Relate algo que aconteceu com outra pessoa.',
+              title: 'De Terceiros',
+              description: 'Outra pessoa está sendo afetada pela situação',
               onTap: () => _select(context, ref, ReportKind.thirdParty),
             ),
           ],
@@ -44,7 +48,8 @@ class ReportTypePage extends ConsumerWidget {
   }
 
   void _select(BuildContext context, WidgetRef ref, ReportKind kind) {
-    ref.read(reportDraftProvider.notifier).update(ReportDraft(kind: kind));
-    context.go(RouteNames.reportForm, extra: ReportDraft(kind: kind));
+    final draft = ReportDraft(kind: kind);
+    ref.read(reportDraftProvider.notifier).update(draft);
+    context.push(RouteNames.reportForm, extra: draft);
   }
 }

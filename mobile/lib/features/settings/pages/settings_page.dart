@@ -17,10 +17,7 @@ import '../widgets/settings_palette_option_widget.dart';
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
-  Future<void> _goHome(
-    BuildContext context,
-    UserSession session,
-  ) async {
+  Future<void> _goHome(BuildContext context, UserSession session) async {
     await AuthenticatedUserNavigator.open(context, session);
   }
 
@@ -35,10 +32,7 @@ class SettingsPage extends ConsumerWidget {
     final settings = ref.watch(appSettingsProvider);
     final notifier = ref.read(appSettingsProvider.notifier);
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final ovalRadius = Radius.elliptical(
-      screenWidth * .27,
-      sizes.xxl,
-    );
+    final ovalRadius = Radius.elliptical(screenWidth * .27, sizes.xxl);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -53,216 +47,206 @@ class SettingsPage extends ConsumerWidget {
       ),
       child: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            PageHeaderWidget(
-              title: 'Configurações',
-              onBackPressed: () => _goHome(context, session),
-            ),
-            Expanded(
-              child: ContentPanelWidget(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PageHeaderWidget(
+                title: 'Configurações',
+                onBackPressed: () => _goHome(context, session),
+              ),
+              ContentPanelWidget(
                 borderRadius: BorderRadius.only(
                   topLeft: ovalRadius,
                   topRight: ovalRadius,
                 ),
-                child: ListView(
+                child: Padding(
                   padding: EdgeInsets.fromLTRB(
                     sizes.lg,
-                    sizes.xl,
+                    sizes.xxl,
                     sizes.lg,
                     sizes.xxl * 3,
                   ),
-                  children: [
-                    Text(
-                      'Fonte',
-                      style: theme.textTheme.headlineSmall,
-                    ),
-                    SizedBox(height: sizes.sm),
-                    _TextPreviewSetting(
-                      label: 'Tamanho:',
-                      previewStyle: theme.textTheme.titleLarge,
-                      onIncrease: () {
-                        notifier.setFontScale(settings.fontScale + .1);
-                      },
-                      onDecrease: () {
-                        notifier.setFontScale(settings.fontScale - .1);
-                      },
-                    ),
-                    _TextPreviewSetting(
-                      label: 'Grossura títulos:',
-                      previewStyle: theme.textTheme.titleLarge?.copyWith(
-                        fontWeight: settings.titleFontWeight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text('Fonte', style: theme.textTheme.headlineSmall),
+                      SizedBox(height: sizes.md),
+                      _TextPreviewSetting(
+                        label: 'Tamanho:',
+                        previewStyle: theme.textTheme.titleLarge,
+                        onIncrease: () {
+                          notifier.setFontScale(settings.fontScale + .1);
+                        },
+                        onDecrease: () {
+                          notifier.setFontScale(settings.fontScale - .1);
+                        },
                       ),
-                      onIncrease: () {
-                        notifier.setTitleFontWeight(FontWeight.w800);
-                      },
-                      onDecrease: () {
-                        notifier.setTitleFontWeight(FontWeight.w600);
-                      },
-                    ),
-                    _TextPreviewSetting(
-                      label: 'Grossura texto normal:',
-                      previewStyle: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: settings.bodyFontWeight,
+                      _TextPreviewSetting(
+                        label: 'Grossura títulos:',
+                        previewStyle: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: settings.titleFontWeight,
+                        ),
+                        onIncrease: () {
+                          notifier.setTitleFontWeight(FontWeight.w800);
+                        },
+                        onDecrease: () {
+                          notifier.setTitleFontWeight(FontWeight.w600);
+                        },
                       ),
-                      onIncrease: () {
-                        notifier.setBodyFontWeight(FontWeight.w600);
-                      },
-                      onDecrease: () {
-                        notifier.setBodyFontWeight(FontWeight.w400);
-                      },
-                    ),
-                    Text(
-                      'Notificações',
-                      style: theme.textTheme.headlineSmall,
-                    ),
-                    SizedBox(height: sizes.md),
-                    _ToggleSetting(
-                      label: 'Mensagens:',
-                      value: settings.messageNotifications,
-                      onChanged: notifier.setMessageNotifications,
-                    ),
-                    _ToggleSetting(
-                      label: 'Lembretes:',
-                      value: settings.reminderNotifications,
-                      onChanged: notifier.setReminderNotifications,
-                    ),
-                    SizedBox(height: sizes.xl),
-                    _VolumeSetting(
-                      volume: settings.volume,
-                      onIncrease: () {
-                        notifier.setVolume(settings.volume + .1);
-                      },
-                      onDecrease: () {
-                        notifier.setVolume(settings.volume - .1);
-                      },
-                    ),
-                    SizedBox(height: sizes.xl),
-                    Text(
-                      'Ícones',
-                      style: theme.textTheme.headlineSmall,
-                    ),
-                    SizedBox(height: sizes.md),
-                    Semantics(
-                      label: 'Exemplo do tamanho dos ícones',
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          Icons.grid_view_rounded,
-                          Icons.home_rounded,
-                          Icons.image_rounded,
-                          Icons.settings_rounded,
-                        ].asMap().entries.map((entry) {
-                          final selected = entry.key == 2;
+                      _TextPreviewSetting(
+                        label: 'Grossura texto normal:',
+                        previewStyle: theme.textTheme.bodyLarge?.copyWith(
+                          fontWeight: settings.bodyFontWeight,
+                        ),
+                        onIncrease: () {
+                          notifier.setBodyFontWeight(FontWeight.w600);
+                        },
+                        onDecrease: () {
+                          notifier.setBodyFontWeight(FontWeight.w400);
+                        },
+                      ),
+                      Text(
+                        'Notificações',
+                        style: theme.textTheme.headlineSmall,
+                      ),
+                      SizedBox(height: sizes.lg),
+                      _ToggleSetting(
+                        label: 'Mensagens:',
+                        value: settings.messageNotifications,
+                        onChanged: notifier.setMessageNotifications,
+                      ),
+                      _ToggleSetting(
+                        label: 'Lembretes:',
+                        value: settings.reminderNotifications,
+                        onChanged: notifier.setReminderNotifications,
+                      ),
+                      SizedBox(height: sizes.xxl),
+                      _VolumeSetting(
+                        volume: settings.volume,
+                        onIncrease: () {
+                          notifier.setVolume(settings.volume + .1);
+                        },
+                        onDecrease: () {
+                          notifier.setVolume(settings.volume - .1);
+                        },
+                      ),
+                      SizedBox(height: sizes.xxl),
+                      Text('Ícones', style: theme.textTheme.headlineSmall),
+                      SizedBox(height: sizes.lg),
+                      Semantics(
+                        label: 'Exemplo do tamanho dos ícones',
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children:
+                              [
+                                Icons.grid_view_rounded,
+                                Icons.home_rounded,
+                                Icons.image_rounded,
+                                Icons.settings_rounded,
+                              ].asMap().entries.map((entry) {
+                                final selected = entry.key == 2;
 
-                          return Icon(
-                            entry.value,
-                            size: sizes.icon(sizes.lg),
-                            color: selected
-                                ? colorScheme.primary
-                                : colorScheme.onSurfaceVariant.withValues(
-                                    alpha: .65,
-                                  ),
+                                return Icon(
+                                  entry.value,
+                                  size: sizes.icon(sizes.lg),
+                                  color: selected
+                                      ? colorScheme.primary
+                                      : colorScheme.onSurfaceVariant.withValues(
+                                          alpha: .65,
+                                        ),
+                                );
+                              }).toList(),
+                        ),
+                      ),
+                      SizedBox(height: sizes.lg),
+                      SettingsAdjustmentButtonsWidget(
+                        onIncrease: () {
+                          notifier.setIconScale(settings.iconScale + .1);
+                        },
+                        onDecrease: () {
+                          notifier.setIconScale(settings.iconScale - .1);
+                        },
+                      ),
+                      SizedBox(height: sizes.xxl),
+                      Text('Botões', style: theme.textTheme.headlineSmall),
+                      SizedBox(height: sizes.lg),
+                      FractionallySizedBox(
+                        widthFactor: .82,
+                        child: ButtonWidget(
+                          label: 'Botão',
+                          size: ButtonSize.medium,
+                          variant: ButtonVariant.secondary,
+                          onPressed: () {},
+                        ),
+                      ),
+                      SizedBox(height: sizes.lg),
+                      SettingsAdjustmentButtonsWidget(
+                        onIncrease: () {
+                          notifier.setButtonScale(settings.buttonScale + .1);
+                        },
+                        onDecrease: () {
+                          notifier.setButtonScale(settings.buttonScale - .1);
+                        },
+                      ),
+                      SizedBox(height: sizes.xxl),
+                      Text('Cores', style: theme.textTheme.headlineSmall),
+                      SizedBox(height: sizes.lg),
+                      SettingsPaletteOptionWidget(
+                        colors: const [
+                          AppColors.primary,
+                          AppColors.gradientBottom,
+                          AppColors.white,
+                        ],
+                        selected: settings.primaryColor == AppColors.primary,
+                        onSelected: () {
+                          notifier.setPalette(
+                            primaryColor: AppColors.primary,
+                            gradientTop: AppColors.gradientTop,
+                            gradientBottom: AppColors.gradientBottom,
                           );
-                        }).toList(),
+                        },
                       ),
-                    ),
-                    SizedBox(height: sizes.md),
-                    SettingsAdjustmentButtonsWidget(
-                      onIncrease: () {
-                        notifier.setIconScale(settings.iconScale + .1);
-                      },
-                      onDecrease: () {
-                        notifier.setIconScale(settings.iconScale - .1);
-                      },
-                    ),
-                    SizedBox(height: sizes.xl),
-                    Text(
-                      'Botões',
-                      style: theme.textTheme.headlineSmall,
-                    ),
-                    SizedBox(height: sizes.md),
-                    FractionallySizedBox(
-                      widthFactor: .82,
-                      child: ButtonWidget(
-                        label: 'Botão',
-                        size: ButtonSize.small,
-                        variant: ButtonVariant.secondary,
-                        onPressed: () {},
+                      SizedBox(height: sizes.xxl),
+                      SettingsPaletteOptionWidget(
+                        colors: const [
+                          AppColors.greenPrimary,
+                          AppColors.greenGradientBottom,
+                          AppColors.white,
+                        ],
+                        selected:
+                            settings.primaryColor == AppColors.greenPrimary,
+                        onSelected: () {
+                          notifier.setPalette(
+                            primaryColor: AppColors.greenPrimary,
+                            gradientTop: AppColors.greenGradientTop,
+                            gradientBottom: AppColors.greenGradientBottom,
+                          );
+                        },
                       ),
-                    ),
-                    SizedBox(height: sizes.md),
-                    SettingsAdjustmentButtonsWidget(
-                      onIncrease: () {
-                        notifier.setButtonScale(settings.buttonScale + .1);
-                      },
-                      onDecrease: () {
-                        notifier.setButtonScale(settings.buttonScale - .1);
-                      },
-                    ),
-                    SizedBox(height: sizes.xl),
-                    Text(
-                      'Cores',
-                      style: theme.textTheme.headlineSmall,
-                    ),
-                    SizedBox(height: sizes.md),
-                    SettingsPaletteOptionWidget(
-                      colors: const [
-                        AppColors.primary,
-                        AppColors.gradientBottom,
-                        AppColors.white,
-                      ],
-                      selected: settings.primaryColor == AppColors.primary,
-                      onSelected: () {
-                        notifier.setPalette(
-                          primaryColor: AppColors.primary,
-                          gradientTop: AppColors.gradientTop,
-                          gradientBottom: AppColors.gradientBottom,
-                        );
-                      },
-                    ),
-                    SizedBox(height: sizes.lg),
-                    SettingsPaletteOptionWidget(
-                      colors: const [
-                        AppColors.greenPrimary,
-                        AppColors.greenGradientBottom,
-                        AppColors.white,
-                      ],
-                      selected:
-                          settings.primaryColor == AppColors.greenPrimary,
-                      onSelected: () {
-                        notifier.setPalette(
-                          primaryColor: AppColors.greenPrimary,
-                          gradientTop: AppColors.greenGradientTop,
-                          gradientBottom: AppColors.greenGradientBottom,
-                        );
-                      },
-                    ),
-                    SizedBox(height: sizes.xl),
-                    Text(
-                      'Intensidade',
-                      style: theme.textTheme.headlineSmall,
-                    ),
-                    SizedBox(height: sizes.md),
-                    _IntensitySetting(
-                      value: settings.colorIntensity,
-                      onChanged: notifier.setColorIntensity,
-                      onIncrease: () {
-                        notifier.setColorIntensity(
-                          settings.colorIntensity + .1,
-                        );
-                      },
-                      onDecrease: () {
-                        notifier.setColorIntensity(
-                          settings.colorIntensity - .1,
-                        );
-                      },
-                    ),
-                  ],
+                      SizedBox(height: sizes.xxl),
+                      Text('Intensidade', style: theme.textTheme.headlineSmall),
+                      SizedBox(height: sizes.lg),
+                      _IntensitySetting(
+                        value: settings.colorIntensity,
+                        onChanged: notifier.setColorIntensity,
+                        onIncrease: () {
+                          notifier.setColorIntensity(
+                            settings.colorIntensity + .1,
+                          );
+                        },
+                        onDecrease: () {
+                          notifier.setColorIntensity(
+                            settings.colorIntensity - .1,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -362,21 +346,20 @@ class _ToggleSetting extends StatelessWidget {
       label: label,
       toggled: value,
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: sizes.xs),
+        padding: EdgeInsets.symmetric(vertical: sizes.sm),
         child: Row(
           children: [
-            Expanded(
-              child: Text(label, style: theme.textTheme.titleMedium),
-            ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: context.appGradientColors.bottom,
-              activeTrackColor: colorScheme.surface,
-              inactiveThumbColor: colorScheme.onSurfaceVariant,
-              inactiveTrackColor: colorScheme.surface,
-              trackOutlineColor: WidgetStatePropertyAll(
-                colorScheme.outline,
+            Expanded(child: Text(label, style: theme.textTheme.titleMedium)),
+            Transform.scale(
+              scale: 1.1,
+              child: Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: context.appGradientColors.bottom,
+                activeTrackColor: colorScheme.surface,
+                inactiveThumbColor: colorScheme.onSurfaceVariant,
+                inactiveTrackColor: colorScheme.surface,
+                trackOutlineColor: WidgetStatePropertyAll(colorScheme.outline),
               ),
             ),
           ],
@@ -424,14 +407,14 @@ class _VolumeSetting extends StatelessWidget {
               child: Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: sizes.md,
-                  vertical: sizes.sm,
+                  vertical: sizes.md,
                 ),
                 child: Row(
                   children: [
                     Expanded(
                       child: Text(
                         'Tocar',
-                        style: theme.textTheme.bodySmall?.copyWith(
+                        style: theme.textTheme.bodyMedium?.copyWith(
                           color: colorScheme.primary,
                         ),
                       ),
@@ -439,7 +422,7 @@ class _VolumeSetting extends StatelessWidget {
                     Icon(
                       Icons.notifications_rounded,
                       color: colorScheme.primary,
-                      size: sizes.icon(sizes.md),
+                      size: sizes.icon(sizes.lg),
                     ),
                   ],
                 ),
@@ -503,7 +486,7 @@ class _IntensitySetting extends StatelessWidget {
                   updateValue(details.localPosition.dx);
                 },
                 child: Container(
-                  height: sizes.buttonSmall * .62,
+                  height: sizes.buttonSmall * .85,
                   decoration: BoxDecoration(
                     color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(sizes.radiusFull),
@@ -530,7 +513,7 @@ class _IntensitySetting extends StatelessWidget {
                       Center(
                         child: Text(
                           '${(value * 100).round()}%',
-                          style: theme.textTheme.bodySmall?.copyWith(
+                          style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                             color: colorScheme.onSurface,
                           ),

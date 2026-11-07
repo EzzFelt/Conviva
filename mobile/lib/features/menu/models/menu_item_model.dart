@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/assets_paths.dart';
 import '../../../core/routes/route_names.dart';
 import '../../auth/models/account_type.dart';
 
@@ -9,12 +10,17 @@ class MenuItemModel {
     required this.description,
     required this.icon,
     this.route,
+    this.illustration,
   });
 
   final String title;
   final String description;
   final IconData icon;
   final String? route;
+
+  /// Caminho de uma ilustração (asset). Se faltar ou não carregar,
+  /// a tela usa [icon] no lugar.
+  final String? illustration;
 }
 
 List<MenuItemModel> menuItemsForAccount(AccountType accountType) {
@@ -62,15 +68,17 @@ List<MenuItemModel> menuItemsForAccount(AccountType accountType) {
     AccountType.family => const [
       MenuItemModel(
         title: 'Rotina do parente',
-        description: 'Acompanhe as tarefas e atividades do seu parente.',
+        description: 'Acompanhe a rotina do idoso de forma simples e rápida.',
         icon: Icons.event_note_rounded,
         route: RouteNames.routine,
+        illustration: AssetPaths.menuFamilyRoutine,
       ),
       MenuItemModel(
         title: 'Chat - Converse',
-        description: 'Converse com o idoso e com seus cuidadores.',
+        description: 'Envie mensagens rápidas para se comunicar.',
         icon: Icons.forum_rounded,
         route: RouteNames.chat,
+        illustration: AssetPaths.menuFamilyChat,
       ),
     ],
   };

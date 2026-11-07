@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:conviva/shared/utils/profile_image.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/assets_paths.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../shared/widgets/action_card_widget.dart';
-import '../../../shared/widgets/app_modal_widget.dart';
 import '../../../shared/widgets/content_panel_widget.dart';
 import '../widgets/home_header_widget.dart';
 import '../../../shared/widgets/info_card_widget.dart';
@@ -57,7 +57,9 @@ class ElderHomePage extends ConsumerWidget {
 
     return CircleAvatar(
       backgroundColor: colorScheme.primary.withValues(alpha: .12),
-      foregroundImage: hasPhoto ? NetworkImage(normalizedPhotoUrl) : null,
+      foregroundImage: hasPhoto
+          ? profileImageProvider(normalizedPhotoUrl)
+          : null,
       child: Icon(
         _participantIcon(conversation.participantType),
         color: colorScheme.primary,
@@ -168,19 +170,6 @@ class ElderHomePage extends ConsumerWidget {
     );
   }
 
-  Future<void> _openNotifications(BuildContext context) async {
-    await showAppModal<void>(
-      context: context,
-      title: 'Notificações',
-      size: AppModalSize.medium,
-      child: _emptyMessage(
-        context,
-        icon: Icons.notifications_none_rounded,
-        message: 'Você não possui notificações no momento.',
-      ),
-    );
-  }
-
   Widget _homeContent(
     BuildContext context,
     WidgetRef ref,
@@ -219,12 +208,8 @@ class ElderHomePage extends ConsumerWidget {
             children: [
               HomeHeaderWidget(
                 name: displayName,
-                greeting: 'Bem-vinda,',
+                greeting: 'Olá,',
                 photoUrl: session.photoUrl,
-                notificationCount: 0,
-                onNotificationsPressed: () async {
-                  await _openNotifications(context);
-                },
               ),
               ContentPanelWidget(
                 topPanelPadding: EdgeInsets.fromLTRB(
@@ -285,7 +270,7 @@ class ElderHomePage extends ConsumerWidget {
                       illustrationSize: sizes.xxl * 2,
                       actionLabel: 'Denuncie!',
                       onPressed: () {
-                        context.go(RouteNames.reportStart);
+                        context.push(RouteNames.reportStart);
                       },
                       layout: ActionCardLayout.textFirst,
                       showIllustrationBackground: false,
@@ -306,6 +291,7 @@ class ElderHomePage extends ConsumerWidget {
     required IconData icon,
     required String message,
     bool loading = false,
+    VoidCallback? onRetry,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -327,6 +313,14 @@ class ElderHomePage extends ConsumerWidget {
                       textAlign: TextAlign.center,
                       style: theme.textTheme.titleLarge,
                     ),
+                    if (onRetry != null)
+                      Padding(
+                        padding: EdgeInsets.only(top: sizes.md),
+                        child: TextButton(
+                          onPressed: onRetry,
+                          child: Text('Tentar novamente'),
+                        ),
+                      ),
                   ],
                 ),
         ),
@@ -347,10 +341,15 @@ class ElderHomePage extends ConsumerWidget {
           message: '',
           loading: true,
         ),
-        error: (error, _) => _sessionState(
+        error: (_, _) => _sessionState(
           context,
           icon: Icons.error_outline_rounded,
-          message: error.toString().replaceFirst('Bad state: ', ''),
+          message:
+              'Não foi possível carregar sua conta. '
+              'Verifique sua conexão e tente novamente.',
+          onRetry: () {
+            ref.invalidate(currentUserProvider);
+          },
         ),
         data: (session) {
           if (session == null) {

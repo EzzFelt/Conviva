@@ -48,8 +48,9 @@ class RoutineTaskFormModal extends StatefulWidget {
 
 class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
   late final TextEditingController _titleController;
-  late TimeOfDay _startTime;
-  late TimeOfDay _endTime;
+  // Nulos até o usuário escolher: o campo mostra apenas o placeholder.
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
   late bool _repeatWeekly;
   late Set<int> _selectedWeekdays;
   String? _errorMessage;
@@ -69,12 +70,9 @@ class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
     super.initState();
     final task = widget.task;
     _titleController = TextEditingController(text: task?.title ?? '');
-    _startTime = task == null
-        ? const TimeOfDay(hour: 9, minute: 0)
-        : TimeOfDay.fromDateTime(task.startAt);
-    _endTime = task == null
-        ? const TimeOfDay(hour: 10, minute: 0)
-        : TimeOfDay.fromDateTime(task.endAt);
+    _startTime =
+        task == null ? null : TimeOfDay.fromDateTime(task.startAt);
+    _endTime = task == null ? null : TimeOfDay.fromDateTime(task.endAt);
     _repeatWeekly = task?.repeatWeekly ?? false;
     _selectedWeekdays = task?.repeatWeekdays.isNotEmpty == true
         ? {...task!.repeatWeekdays}
@@ -88,9 +86,10 @@ class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
   }
 
   Future<void> _selectTime({required bool start}) async {
+    final now = TimeOfDay.now();
     final selectedTime = await showTimePicker(
       context: context,
-      initialTime: start ? _startTime : _endTime,
+      initialTime: start ? (_startTime ?? now) : (_endTime ?? _startTime ?? now),
       helpText: start ? 'Horário de começo' : 'Horário de término',
       confirmText: 'Confirmar',
       cancelText: 'Cancelar',
@@ -99,6 +98,7 @@ class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
     if (selectedTime == null || !mounted) return;
 
     setState(() {
+      _errorMessage = null;
       if (start) {
         _startTime = selectedTime;
       } else {
@@ -169,12 +169,21 @@ class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
       return;
     }
 
+    final startTime = _startTime;
+    final endTime = _endTime;
+    if (startTime == null || endTime == null) {
+      setState(() {
+        _errorMessage = 'Informe o horário de começo e término.';
+      });
+      return;
+    }
+
     final originalTask = widget.task;
     final scheduleDate = originalTask == null
         ? RoutineTask.dateOnly(widget.selectedDate)
         : RoutineTask.dateOnly(originalTask.startAt);
-    final startAt = _dateWithTime(scheduleDate, _startTime);
-    var endAt = _dateWithTime(scheduleDate, _endTime);
+    final startAt = _dateWithTime(scheduleDate, startTime);
+    var endAt = _dateWithTime(scheduleDate, endTime);
     if (!endAt.isAfter(startAt)) {
       endAt = endAt.add(const Duration(days: 1));
     }
@@ -261,6 +270,7 @@ class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
             Expanded(
               child: _TimeField(
                 label: 'Começo:',
+                placeholder: 'Ex: 9:00',
                 time: _startTime,
                 onPressed: () => _selectTime(start: true),
               ),
@@ -281,6 +291,7 @@ class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
             Expanded(
               child: _TimeField(
                 label: 'Término:',
+                placeholder: 'Ex: 10:00',
                 time: _endTime,
                 onPressed: () => _selectTime(start: false),
               ),
@@ -367,12 +378,14 @@ class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
 class _TimeField extends StatelessWidget {
   const _TimeField({
     required this.label,
+    required this.placeholder,
     required this.time,
     required this.onPressed,
   });
 
   final String label;
-  final TimeOfDay time;
+  final String placeholder;
+  final TimeOfDay? time;
   final VoidCallback onPressed;
 
   @override
@@ -380,7 +393,10 @@ class _TimeField extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
-    final minute = time.minute.toString().padLeft(2, '0');
+    final selected = time;
+    final text = selected == null
+        ? placeholder
+        : '${selected.hour}:${selected.minute.toString().padLeft(2, '0')}';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -402,8 +418,13 @@ class _TimeField extends StatelessWidget {
               height: sizes.buttonMedium,
               child: Center(
                 child: Text(
-                  '${time.hour}:$minute',
-                  style: theme.textTheme.titleLarge,
+                  text,
+                  style: selected == null
+                      ? theme.textTheme.titleLarge?.copyWith(
+                          color: colorScheme.onSurface
+                              .withValues(alpha: .4),
+                        )
+                      : theme.textTheme.titleLarge,
                 ),
               ),
             ),

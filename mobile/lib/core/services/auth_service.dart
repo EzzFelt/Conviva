@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:conviva/shared/utils/profile_image.dart';
 
 import '../utils/family_link_id.dart';
 
@@ -248,6 +251,10 @@ class AuthRegister {
   }
 }
 
+/// Tamanho máximo (em caracteres) do data URI da foto de perfil.
+/// Deve ser igual ao limite usado no firestore.rules.
+const int maxProfilePhotoLength = 300000;
+
 class AuthService {
   AuthService._();
 
@@ -479,6 +486,49 @@ class AuthService {
     } catch (_) {
       // O documento do Firestore é a fonte principal do perfil no app.
     }
+  }
+
+  /// Salva a foto de perfil como data URI (base64) em `users/{uid}.photoUrl`.
+  ///
+  /// A imagem já chega reduzida (400x400, qualidade 70) pelo ImagePicker,
+  /// então fica bem abaixo do limite de 1 MB de um documento do Firestore.
+  Future<String> saveProfilePhoto({
+    required Uint8List bytes,
+    String extension = 'jpg',
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('Usuário não autenticado.');
+    }
+
+    final mimeType = switch (extension.toLowerCase()) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+
+    final dataUri = buildProfileDataUri(bytes, mimeType: mimeType);
+
+    if (dataUri.length > maxProfilePhotoLength) {
+      throw Exception('A imagem é muito grande. Escolha uma menor.');
+    }
+
+    await _firestore.collection('users').doc(user.uid).update({
+      'photoUrl': dataUri,
+    });
+
+    return dataUri;
+  }
+
+  Future<void> removeProfilePhoto() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw StateError('Usuário não autenticado.');
+    }
+
+    await _firestore.collection('users').doc(user.uid).update({
+      'photoUrl': FieldValue.delete(),
+    });
   }
 
   Future<DocumentSnapshot<Map<String, dynamic>>> getInstitutionById(

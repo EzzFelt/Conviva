@@ -34,10 +34,7 @@ class MenuPage extends ConsumerWidget {
     );
   }
 
-  Widget _accountIllustration(
-    BuildContext context,
-    MenuItemModel item,
-  ) {
+  Widget _iconTile(BuildContext context, MenuItemModel item) {
     final colorScheme = Theme.of(context).colorScheme;
     final sizes = context.appSizes;
 
@@ -53,6 +50,26 @@ class MenuPage extends ConsumerWidget {
         item.icon,
         size: sizes.icon(sizes.xl + sizes.sm),
         color: colorScheme.primary,
+      ),
+    );
+  }
+
+  Widget _accountIllustration(
+    BuildContext context,
+    MenuItemModel item,
+  ) {
+    final illustration = item.illustration;
+    if (illustration == null) return _iconTile(context, item);
+
+    final sizes = context.appSizes;
+
+    return SizedBox(
+      width: sizes.xxl * 2,
+      height: sizes.xxl * 2,
+      child: Image.asset(
+        illustration,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => _iconTile(context, item),
       ),
     );
   }

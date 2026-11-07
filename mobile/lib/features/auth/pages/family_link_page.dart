@@ -30,7 +30,9 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
   String? _validateElderCode(String? value) {
     final normalized = (value ?? '').trim().toUpperCase();
     if (normalized.isEmpty) return 'Informe o código do idoso.';
-    if (!RegExp(r'^ELD[A-Z0-9]+$').hasMatch(normalized)) return 'Use um código no formato ELD4321.';
+    if (!RegExp(r'^ELD[A-Z0-9]+$').hasMatch(normalized)) {
+      return 'Use um código no formato ELD4321.';
+    }
     return null;
   }
 
@@ -62,11 +64,16 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
 
       context.go(
         RouteNames.familyHome,
-        extra: elderData['name']?.toString() ?? 'Idoso',
+        extra: {
+          'id': elderData['id']?.toString(),
+          'name': elderData['name']?.toString() ?? 'Idoso',
+        },
       );
     } catch (error) {
       if (!mounted) return;
-      final message = error is Exception ? error.toString().replaceFirst('Exception: ', '') : error.toString();
+      final message = error is Exception
+          ? error.toString().replaceFirst('Exception: ', '')
+          : error.toString();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -199,7 +206,6 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
                 ),
               ),
             ),
-
           ],
         ),
       ),

@@ -1,8 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
 
+import '../models/auth_error_message.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../shared/widgets/back_button_widget.dart';
@@ -45,7 +46,7 @@ class _ElderLoginPageState extends ConsumerState<ElderLoginPage> {
 
     FocusManager.instance.primaryFocus?.unfocus();
 
-    final elderCode = _elderCodeController.text.trim();
+    final elderCode = _elderCodeController.text.trim().toUpperCase();
     final password = _passwordController.text.trim();
 
     if (elderCode.isEmpty) {
@@ -76,32 +77,18 @@ class _ElderLoginPageState extends ConsumerState<ElderLoginPage> {
 
       if (!mounted) return;
       await AuthenticatedUserNavigator.open(context, session);
-    } on FirebaseAuthException catch (error) {
+    }  catch (error) {
       if (!mounted) return;
 
-      final message = switch (error.code) {
-        'invalid-credential' ||
-        'user-not-found' ||
-        'wrong-password' => 'Código ou senha incorretos.',
-        'user-disabled' => 'Esta conta foi desativada.',
-        _ => 'Não foi possível fazer login. Tente novamente.',
-      };
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } catch (error) {
-      if (!mounted) return;
+      final message = AuthErrorMessage.from(
+        error,
+        context: AuthErrorContext.elderLogin,
+      );
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            error is Exception
-                ? error.toString().replaceFirst('Exception: ', '')
-                : 'Dados de acesso inválidos. Tente novamente.',
-          ),
-        ),
+        SnackBar(content: Text(message)),
       );
+
     } finally {
       if (mounted) {
         setState(() {
@@ -141,7 +128,7 @@ class _ElderLoginPageState extends ConsumerState<ElderLoginPage> {
 
               SizedBox(height: sizes.xl),
 
-              const AuthHeaderWidget(title: 'Acesse com sua conta'),
+              const AuthHeaderWidget(title: 'Entre na\nsua conta!',),
 
               SizedBox(height: sizes.xl),
 
@@ -150,6 +137,14 @@ class _ElderLoginPageState extends ConsumerState<ElderLoginPage> {
                 hintText: 'Código de acesso (ELD...)',
                 enabled: !_isLoading,
                 keyboardType: TextInputType.text,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  TextInputFormatter.withFunction(
+                    (_, newValue) => newValue.copyWith(
+                      text: newValue.text.toUpperCase(),
+                    ),
+                  ),
+                ],
                 textInputAction: TextInputAction.next,
                 autofillHints: const [AutofillHints.username],
               ),

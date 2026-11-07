@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:conviva/shared/utils/profile_image.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../shared/formatters/brazilian_phone_formatter.dart';
 import '../../../shared/widgets/add_new_button_widget.dart';
 import '../../../shared/widgets/app_modal_widget.dart';
@@ -20,16 +22,14 @@ import '../../home/widgets/next_task_card.dart';
 import '../models/routine_elder_summary.dart';
 import '../models/routine_permissions.dart';
 import '../models/routine_task.dart';
+import '../models/routine_task_completion.dart';
 import '../providers/routine_provider.dart';
 import '../widgets/routine_calendar_widget.dart';
 import '../widgets/routine_task_form_modal.dart';
 import '../widgets/routine_view_toggle_widget.dart';
 
 class RoutinePage extends ConsumerWidget {
-  const RoutinePage({
-    super.key,
-    this.elderId,
-  });
+  const RoutinePage({super.key, this.elderId});
 
   final String? elderId;
 
@@ -61,20 +61,14 @@ class RoutinePage extends ConsumerWidget {
               );
             }
 
-            return _RoutineDetailPage(
-              actor: session,
-              elderId: session.uid,
-            );
+            return _RoutineDetailPage(actor: session, elderId: session.uid);
           }
 
           if (elderId == null) {
             return _RoutineElderSelectionPage(actor: session);
           }
 
-          return _RoutineDetailPage(
-            actor: session,
-            elderId: elderId!,
-          );
+          return _RoutineDetailPage(actor: session, elderId: elderId!);
         },
       ),
     );
@@ -90,23 +84,12 @@ class _RoutineElderSelectionPage extends ConsumerWidget {
     await AuthenticatedUserNavigator.open(context, actor);
   }
 
-  Widget _avatar(BuildContext context, RoutineElderSummary elder) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final photoUrl = elder.photoUrl;
-
-    return CircleAvatar(
-      backgroundColor: colorScheme.primary.withValues(alpha: .12),
-      foregroundImage: photoUrl == null ? null : NetworkImage(photoUrl),
-      child: photoUrl == null
-          ? Icon(Icons.elderly_rounded, color: colorScheme.primary)
-          : null,
-    );
-  }
-
   Widget _elderCard(BuildContext context, RoutineElderSummary elder) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
+    final photoUrl = elder.photoUrl?.trim();
+
     final details = <String>[
       if (elder.phone.isNotEmpty)
         'Tel: ${BrazilianPhoneFormatter.format(elder.phone)}',
@@ -116,38 +99,70 @@ class _RoutineElderSelectionPage extends ConsumerWidget {
         'Grau de dependência: ${elder.dependencyLevel}',
     ];
 
-    return InfoCardWidget(
-      size: InfoCardSize.large,
+    return Material(
+      color: colorScheme.surface,
+      elevation: sizes.sm,
+      shadowColor: colorScheme.shadow.withValues(alpha: .24),
       borderRadius: BorderRadius.circular(sizes.radiusMd),
-      leading: _avatar(context, elder),
-      onPressed: () => context.go(RouteNames.routinePath(elder.id)),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(elder.name, style: theme.textTheme.titleMedium),
-          if (details.isNotEmpty) ...[
-            SizedBox(height: sizes.xs),
-            for (final detail in details)
-              Text(
-                detail,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.go(RouteNames.routinePath(elder.id)),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: sizes.md,
+            vertical: sizes.sm + sizes.xs,
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: sizes.lg,
+                backgroundColor: colorScheme.primary.withValues(alpha: .12),
+                foregroundImage: photoUrl == null || photoUrl.isEmpty
+                    ? null
+                    : profileImageProvider(photoUrl),
+                child: photoUrl == null || photoUrl.isEmpty
+                    ? Icon(Icons.elderly_rounded, color: colorScheme.primary)
+                    : null,
+              ),
+              SizedBox(width: sizes.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      elder.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: colorScheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    for (final detail in details)
+                      Text(
+                        detail,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-          ],
-          SizedBox(height: sizes.xs),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'Ver rotina',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: colorScheme.primary,
-                decoration: TextDecoration.underline,
-                decorationColor: colorScheme.primary,
+              SizedBox(width: sizes.sm),
+              Text(
+                'Ver rotina',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.primary,
+                  decoration: TextDecoration.underline,
+                  decorationColor: colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -185,7 +200,7 @@ class _RoutineElderSelectionPage extends ConsumerWidget {
             SizedBox(height: sizes.lg),
             for (var index = 0; index < elders.length; index++) ...[
               _elderCard(context, elders[index]),
-              if (index < elders.length - 1) SizedBox(height: sizes.lg),
+              if (index < elders.length - 1) SizedBox(height: sizes.md),
             ],
           ],
         );
@@ -196,6 +211,7 @@ class _RoutineElderSelectionPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final eldersState = ref.watch(accessibleRoutineEldersProvider);
+
     final sizes = context.appSizes;
 
     return DecoratedBox(
@@ -242,23 +258,31 @@ class _RoutineElderSelectionPage extends ConsumerWidget {
 }
 
 class _RoutineDetailPage extends ConsumerStatefulWidget {
-  const _RoutineDetailPage({
-    required this.actor,
-    required this.elderId,
-  });
+  const _RoutineDetailPage({required this.actor, required this.elderId});
 
   final UserSession actor;
   final String elderId;
 
   @override
-  ConsumerState<_RoutineDetailPage> createState() =>
-      _RoutineDetailPageState();
+  ConsumerState<_RoutineDetailPage> createState() => _RoutineDetailPageState();
 }
 
 class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
   late DateTime _selectedDay;
+
   RoutineViewMode _viewMode = RoutineViewMode.day;
+
   bool _savingPermissions = false;
+  bool _showHistory = false;
+
+  final Set<String> _completingOccurrenceIds = {};
+
+  // Cache dos eventos por mês.
+  // É invalidado quando a lista de tarefas ou o histórico muda.
+  List<RoutineTask>? _cachedTaskSource;
+  List<RoutineTaskCompletion>? _cachedCompletionSource;
+
+  final Map<int, Map<DateTime, List<RoutineTask>>> _monthEventsCache = {};
 
   static const _weekdayNames = [
     'segunda-feira',
@@ -273,6 +297,7 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
   @override
   void initState() {
     super.initState();
+
     _selectedDay = RoutineTask.dateOnly(DateTime.now());
   }
 
@@ -289,12 +314,17 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
       await AuthenticatedUserNavigator.open(context, widget.actor);
       return;
     }
-    if (mounted) context.go(RouteNames.routine);
+
+    if (mounted) {
+      context.go(RouteNames.routine);
+    }
   }
 
   void _changeView(RoutineViewMode mode) {
     setState(() {
       _viewMode = mode;
+      _showHistory = false;
+
       if (mode == RoutineViewMode.day) {
         _selectedDay = RoutineTask.dateOnly(DateTime.now());
       }
@@ -305,7 +335,175 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     setState(() {
       _selectedDay = RoutineTask.dateOnly(day);
       _viewMode = RoutineViewMode.day;
+      _showHistory = false;
     });
+  }
+
+  void _toggleHistory() {
+    setState(() {
+      _showHistory = !_showHistory;
+    });
+  }
+
+  String _completionIdFor(RoutineTask task, DateTime day) {
+    return RoutineTaskCompletion.documentIdFor(
+      taskId: task.id,
+      occurrenceDate: day,
+      taskWasRecurring: task.repeatWeekly,
+    );
+  }
+
+  Future<void> _completeTask(
+    RoutineTask task,
+    RoutinePermissions permissions,
+  ) async {
+    // Verifica novamente a permissão antes de concluir.
+    // A conclusão segue a mesma regra da edição.
+    final canComplete = canEditRoutineTask(
+      actor: widget.actor,
+      task: task,
+      permissions: permissions,
+    );
+
+    if (!canComplete) {
+      _showError(
+        StateError('Você não tem permissão para concluir esta tarefa.'),
+      );
+      return;
+    }
+
+    final occurrenceDay = RoutineTask.dateOnly(_selectedDay);
+
+    final completionId = _completionIdFor(task, occurrenceDay);
+
+    if (_completingOccurrenceIds.contains(completionId)) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Concluir tarefa?'),
+          content: Text(
+            task.repeatWeekly
+                ? 'Apenas a ocorrência deste dia será marcada como concluída. '
+                      'A tarefa continuará na rotina.'
+                : 'Esta tarefa será retirada da rotina ativa e ficará '
+                      'disponível no histórico.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Concluir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    if (_completingOccurrenceIds.contains(completionId)) {
+      return;
+    }
+
+    setState(() {
+      _completingOccurrenceIds.add(completionId);
+    });
+
+    try {
+      await ref
+          .read(routineRepositoryProvider)
+          .completeTask(
+            actor: widget.actor,
+            task: task,
+            occurrenceDate: occurrenceDay,
+          );
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            task.repeatWeekly
+                ? 'Ocorrência concluída e salva no histórico.'
+                : 'Tarefa concluída e movida para o histórico.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        _showError(error);
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _completingOccurrenceIds.remove(completionId);
+        });
+      }
+    }
+  }
+
+  Widget _completionAction(
+    BuildContext context,
+    RoutineTask task,
+    RoutinePermissions permissions, {
+    bool compact = false,
+  }) {
+    // Não exibe a ação se o usuário não puder editar a tarefa.
+    final canComplete = canEditRoutineTask(
+      actor: widget.actor,
+      task: task,
+      permissions: permissions,
+    );
+
+    if (!canComplete) {
+      return const SizedBox.shrink();
+    }
+
+    final completionId = _completionIdFor(task, _selectedDay);
+
+    final isCompleting = _completingOccurrenceIds.contains(completionId);
+
+    final label = task.repeatWeekly ? 'Concluir ocorrência' : 'Concluir tarefa';
+
+    if (compact) {
+      return IconButton(
+        tooltip: label,
+        onPressed: isCompleting ? null : () => _completeTask(task, permissions),
+        icon: isCompleting
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.check_circle_outline_rounded),
+      );
+    }
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton.icon(
+        onPressed: isCompleting ? null : () => _completeTask(task, permissions),
+        icon: isCompleting
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.check_circle_outline_rounded),
+        label: Text(isCompleting ? 'Concluindo...' : label),
+      ),
+    );
   }
 
   Future<void> _openTaskForm({RoutineTask? task}) async {
@@ -322,23 +520,19 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     );
 
     if (result == null || !mounted) return;
+
     final repository = ref.read(routineRepositoryProvider);
 
     try {
       switch (result.action) {
         case RoutineTaskFormAction.save:
           if (task == null) {
-            await repository.createTask(
-              actor: widget.actor,
-              task: result.task,
-            );
+            await repository.createTask(actor: widget.actor, task: result.task);
           } else {
-            await repository.updateTask(
-              actor: widget.actor,
-              task: result.task,
-            );
+            await repository.updateTask(actor: widget.actor, task: result.task);
           }
           break;
+
         case RoutineTaskFormAction.delete:
           await repository.deleteTask(task: result.task);
           break;
@@ -351,25 +545,36 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
 
   Future<void> _setElderPermission(bool value) async {
     if (_savingPermissions) return;
-    setState(() => _savingPermissions = true);
+
+    setState(() {
+      _savingPermissions = true;
+    });
 
     try {
-      await ref.read(routineRepositoryProvider).setElderPermissions(
+      await ref
+          .read(routineRepositoryProvider)
+          .setElderPermissions(
             actor: widget.actor,
             elderId: widget.elderId,
             canManageOwnRoutine: value,
           );
     } catch (error) {
-      if (mounted) _showError(error);
+      if (mounted) {
+        _showError(error);
+      }
     } finally {
-      if (mounted) setState(() => _savingPermissions = false);
+      if (mounted) {
+        setState(() {
+          _savingPermissions = false;
+        });
+      }
     }
   }
 
   void _showError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_errorMessage(error))),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(_errorMessage(error))));
   }
 
   bool _isToday(DateTime day) {
@@ -378,16 +583,30 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
 
   String _selectedDateLabel() {
     final weekday = _weekdayNames[_selectedDay.weekday - 1];
+
     final day = _selectedDay.day.toString().padLeft(2, '0');
     final month = _selectedDay.month.toString().padLeft(2, '0');
-    return '${weekday[0].toUpperCase()}${weekday.substring(1)}\n$day/$month';
+
+    return '${weekday[0].toUpperCase()}'
+        '${weekday.substring(1)}\n$day/$month';
   }
 
-  List<RoutineTask> _visibleTasks(RoutineState routineState) {
-    return routineState.tasksForDay(
-      elderId: widget.elderId,
-      day: _selectedDay,
-    );
+  List<RoutineTask> _visibleTasks(
+    RoutineState routineState,
+    List<RoutineTaskCompletion> completions,
+  ) {
+    final completedIds = <String>{
+      for (final completion in completions) completion.id,
+    };
+
+    return routineState
+        .tasksForDay(elderId: widget.elderId, day: _selectedDay)
+        .where((task) {
+          final completionId = _completionIdFor(task, _selectedDay);
+
+          return !completedIds.contains(completionId);
+        })
+        .toList(growable: false);
   }
 
   IconData _taskIcon(RoutineTaskType type) {
@@ -411,11 +630,13 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
   ) {
     final colorScheme = Theme.of(context).colorScheme;
     final sizes = context.appSizes;
+
     final canEdit = canEditRoutineTask(
       actor: widget.actor,
       task: task,
       permissions: permissions,
     );
+
     final onEdit = canEdit ? () => _openTaskForm(task: task) : null;
 
     return InfoCardWidget(
@@ -429,7 +650,69 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
       title: task.title,
       subtitle: task.timeLabel,
       onPressed: onEdit,
-      trailing: canEdit ? EditButtonWidget(onPressed: onEdit) : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (canEdit)
+            _completionAction(context, task, permissions, compact: true),
+          if (canEdit) EditButtonWidget(onPressed: onEdit),
+        ],
+      ),
+    );
+  }
+
+  Widget _historyContent(
+    BuildContext context,
+    AsyncValue<List<RoutineTaskCompletion>> completionsState,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+
+    return completionsState.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _RoutineInlineMessage(
+        icon: Icons.error_outline_rounded,
+        message: _errorMessage(error),
+      ),
+      data: (completions) {
+        if (completions.isEmpty) {
+          return const _RoutineInlineMessage(
+            icon: Icons.history_rounded,
+            message: 'Nenhuma tarefa concluída até o momento.',
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Tarefas concluídas', style: theme.textTheme.titleMedium),
+            SizedBox(height: sizes.md),
+            for (var index = 0; index < completions.length; index++) ...[
+              InfoCardWidget(
+                size: InfoCardSize.small,
+                borderRadius: BorderRadius.circular(sizes.radiusMd),
+                leading: Icon(
+                  _taskIcon(completions[index].taskType),
+                  color: colorScheme.primary,
+                  size: sizes.icon(sizes.lg),
+                ),
+                title: completions[index].taskTitle,
+                subtitle:
+                    '${completions[index].occurrenceDateLabel} • '
+                    '${completions[index].timeLabel}\n'
+                    'Concluída às '
+                    '${completions[index].completedTimeLabel}',
+                trailing: Icon(
+                  Icons.check_circle_rounded,
+                  color: colorScheme.primary,
+                ),
+              ),
+              if (index < completions.length - 1) SizedBox(height: sizes.md),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -442,6 +725,7 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     }
 
     final sizes = context.appSizes;
+
     return permissionsState.when(
       loading: () => Padding(
         padding: EdgeInsets.only(top: sizes.md),
@@ -489,12 +773,21 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
           ),
           SizedBox(height: sizes.md),
         ],
-        RoutineViewToggleWidget(
-          value: _viewMode,
-          onChanged: _changeView,
+        if (!_showHistory)
+          RoutineViewToggleWidget(value: _viewMode, onChanged: _changeView),
+        SizedBox(height: sizes.sm),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            onPressed: _toggleHistory,
+            icon: Icon(
+              _showHistory ? Icons.event_note_rounded : Icons.history_rounded,
+            ),
+            label: Text(_showHistory ? 'Voltar à rotina' : 'Ver histórico'),
+          ),
         ),
-        if (_viewMode == RoutineViewMode.day) ...[
-          SizedBox(height: sizes.md),
+        if (!_showHistory && _viewMode == RoutineViewMode.day) ...[
+          SizedBox(height: sizes.sm),
           Container(
             width: double.infinity,
             padding: EdgeInsets.symmetric(
@@ -515,9 +808,9 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
             child: Text(
               _selectedDateLabel(),
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: colorScheme.onPrimary,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary),
             ),
           ),
         ],
@@ -530,25 +823,47 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     BuildContext context,
     RoutineState routineState,
     RoutinePermissions permissions,
+    List<RoutineTaskCompletion> completions,
   ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
-    final tasks = _visibleTasks(routineState);
-    final nextTask = _isToday(_selectedDay)
-        ? routineState.nextTask(
-            elderId: widget.elderId,
-            moment: DateTime.now(),
-          )
-        : (tasks.isEmpty ? null : tasks.first);
+
+    final tasks = _visibleTasks(routineState, completions);
+
+    RoutineTask? nextTask;
+
+    if (_isToday(_selectedDay)) {
+      final now = DateTime.now();
+
+      for (final task in tasks) {
+        if (task.endOn(_selectedDay).isAfter(now)) {
+          nextTask = task;
+          break;
+        }
+      }
+    } else if (tasks.isNotEmpty) {
+      nextTask = tasks.first;
+    }
+
     final remainingTasks = tasks
         .where((task) => task.id != nextTask?.id)
         .toList();
+
     final canCreate = canCreateRoutineTask(
       actor: widget.actor,
       elderId: widget.elderId,
       permissions: permissions,
     );
+
+    // A próxima tarefa também respeita a permissão de edição.
+    final canCompleteNextTask =
+        nextTask != null &&
+        canEditRoutineTask(
+          actor: widget.actor,
+          task: nextTask,
+          permissions: permissions,
+        );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -561,7 +876,8 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
           emptyMessage: _isToday(_selectedDay)
               ? 'Nenhuma tarefa restante hoje'
               : 'Nenhuma tarefa neste dia',
-          onPressed: nextTask != null &&
+          onPressed:
+              nextTask != null &&
                   canEditRoutineTask(
                     actor: widget.actor,
                     task: nextTask,
@@ -570,6 +886,8 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
               ? () => _openTaskForm(task: nextTask)
               : null,
         ),
+        if (canCompleteNextTask)
+          _completionAction(context, nextTask, permissions),
         if (remainingTasks.isNotEmpty) ...[
           SizedBox(height: sizes.xl),
           Text(
@@ -579,8 +897,7 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
           SizedBox(height: sizes.md),
           for (var index = 0; index < remainingTasks.length; index++) ...[
             _taskCard(context, remainingTasks[index], permissions),
-            if (index < remainingTasks.length - 1)
-              SizedBox(height: sizes.md),
+            if (index < remainingTasks.length - 1) SizedBox(height: sizes.md),
           ],
         ],
         SizedBox(height: sizes.xl),
@@ -606,34 +923,205 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     );
   }
 
+  Map<DateTime, List<RoutineTask>> _eventsForMonth(
+    DateTime month,
+    List<RoutineTask> tasks,
+    List<RoutineTaskCompletion> completions,
+  ) {
+    if (!identical(_cachedTaskSource, tasks) ||
+        !identical(_cachedCompletionSource, completions)) {
+      _cachedTaskSource = tasks;
+      _cachedCompletionSource = completions;
+      _monthEventsCache.clear();
+    }
+
+    final cacheKey = month.year * 100 + month.month;
+
+    return _monthEventsCache.putIfAbsent(cacheKey, () {
+      final firstDay = DateTime(month.year, month.month);
+
+      final nextMonth = DateTime(month.year, month.month + 1);
+
+      final completedIds = <String>{
+        for (final completion in completions) completion.id,
+      };
+
+      final grouped = <DateTime, List<RoutineTask>>{};
+
+      void addTaskForDay(RoutineTask task, DateTime day) {
+        final key = RoutineTask.dateOnly(day);
+
+        final completionId = _completionIdFor(task, key);
+
+        if (completedIds.contains(completionId)) {
+          return;
+        }
+
+        grouped.putIfAbsent(key, () => <RoutineTask>[]).add(task);
+      }
+
+      for (final task in tasks) {
+        final taskStartDay = RoutineTask.dateOnly(task.startAt);
+
+        if (!task.repeatWeekly) {
+          if (!taskStartDay.isBefore(firstDay) &&
+              taskStartDay.isBefore(nextMonth)) {
+            addTaskForDay(task, taskStartDay);
+          }
+
+          continue;
+        }
+
+        final firstPossibleDay = taskStartDay.isBefore(firstDay)
+            ? firstDay
+            : taskStartDay;
+
+        for (final weekday in task.repeatWeekdays) {
+          final daysUntilWeekday = (weekday - firstPossibleDay.weekday + 7) % 7;
+
+          var occurrence = firstPossibleDay.add(
+            Duration(days: daysUntilWeekday),
+          );
+
+          while (occurrence.isBefore(nextMonth)) {
+            addTaskForDay(task, occurrence);
+
+            occurrence = occurrence.add(const Duration(days: 7));
+          }
+        }
+      }
+
+      final sorted = <DateTime, List<RoutineTask>>{};
+
+      for (final entry in grouped.entries) {
+        final day = entry.key;
+
+        entry.value.sort(
+          (first, second) => first.startOn(day).compareTo(second.startOn(day)),
+        );
+
+        sorted[day] = List<RoutineTask>.unmodifiable(entry.value);
+      }
+
+      return Map<DateTime, List<RoutineTask>>.unmodifiable(sorted);
+    });
+  }
+
   Widget _allDaysContent(
     BuildContext context,
     RoutineState routineState,
+    List<RoutineTaskCompletion> completions,
   ) {
     final sizes = context.appSizes;
-    final today = DateTime.now();
-    final months = List.generate(
+    final theme = Theme.of(context);
+    final now = DateTime.now();
+    final firstMonth = DateTime(now.year, now.month);
+
+    final months = List<DateTime>.generate(
       12,
-      (index) => DateTime(today.year, today.month + index),
+      (index) => DateTime(firstMonth.year, firstMonth.month + index),
+      growable: false,
     );
 
-    return Column(
-      children: [
-        for (var index = 0; index < months.length; index++) ...[
-          RoutineCalendarWidget(
-            month: months[index],
-            selectedDay: _selectedDay,
-            eventLoader: (day) {
-              return routineState.tasksForDay(
-                elderId: widget.elderId,
-                day: day,
-              );
-            },
-            onDaySelected: _selectDay,
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final month = months[index];
+
+        final monthEvents = _eventsForMonth(
+          month,
+          routineState.tasks,
+          completions,
+        );
+
+        final isFirst = index == 0;
+        final isLast = index == months.length - 1;
+
+        return Container(
+          key: ValueKey('routine-month-${month.year}-${month.month}'),
+          width: double.infinity,
+          color: theme.scaffoldBackgroundColor,
+          child: ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: isFirst ? Radius.circular(sizes.radiusLg) : Radius.zero,
+              topRight: isFirst ? Radius.circular(sizes.radiusLg) : Radius.zero,
+              bottomLeft: isLast
+                  ? Radius.circular(sizes.radiusLg)
+                  : Radius.zero,
+              bottomRight: isLast
+                  ? Radius.circular(sizes.radiusLg)
+                  : Radius.zero,
+            ),
+            child: Container(
+              width: double.infinity,
+              color: theme.colorScheme.surface,
+              padding: EdgeInsets.fromLTRB(
+                sizes.md,
+                isFirst ? sizes.lg : 0,
+                sizes.md,
+                sizes.xl,
+              ),
+              child: RoutineCalendarWidget(
+                month: month,
+                selectedDay: _selectedDay,
+                eventLoader: (day) =>
+                    monthEvents[RoutineTask.dateOnly(day)] ??
+                    const <RoutineTask>[],
+                onDaySelected: _selectDay,
+              ),
+            ),
           ),
-          if (index < months.length - 1) SizedBox(height: sizes.xl),
-        ],
+        );
+      }, childCount: months.length),
+    );
+  }
+
+  List<Widget> _allDaysSlivers(
+    BuildContext context,
+    AsyncValue<List<RoutineTask>> tasksState,
+    AsyncValue<List<RoutineTaskCompletion>> completionsState,
+  ) {
+    return tasksState.when<List<Widget>>(
+      loading: () => const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: CircularProgressIndicator()),
+        ),
       ],
+      error: (error, _) => [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.all(context.appSizes.lg),
+            child: _RoutineInlineMessage(
+              icon: Icons.error_outline_rounded,
+              message: _errorMessage(error),
+            ),
+          ),
+        ),
+      ],
+      data: (tasks) {
+        return completionsState.when<List<Widget>>(
+          loading: () => const [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ],
+          error: (error, _) => [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(context.appSizes.lg),
+                child: _RoutineInlineMessage(
+                  icon: Icons.error_outline_rounded,
+                  message: _errorMessage(error),
+                ),
+              ),
+            ),
+          ],
+          data: (completions) => [
+            _allDaysContent(context, RoutineState(tasks: tasks), completions),
+          ],
+        );
+      },
     );
   }
 
@@ -641,7 +1129,12 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     BuildContext context,
     AsyncValue<List<RoutineTask>> tasksState,
     AsyncValue<RoutinePermissions> permissionsState,
+    AsyncValue<List<RoutineTaskCompletion>> completionsState,
   ) {
+    if (_showHistory) {
+      return _historyContent(context, completionsState);
+    }
+
     return tasksState.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => _RoutineInlineMessage(
@@ -656,10 +1149,23 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
             message: _errorMessage(error),
           ),
           data: (permissions) {
-            final routineState = RoutineState(tasks: tasks);
-            return _viewMode == RoutineViewMode.day
-                ? _dayContent(context, routineState, permissions)
-                : _allDaysContent(context, routineState);
+            return completionsState.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => _RoutineInlineMessage(
+                icon: Icons.error_outline_rounded,
+                message: _errorMessage(error),
+              ),
+              data: (completions) {
+                final routineState = RoutineState(tasks: tasks);
+
+                return _dayContent(
+                  context,
+                  routineState,
+                  permissions,
+                  completions,
+                );
+              },
+            );
           },
         );
       },
@@ -669,11 +1175,55 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
   @override
   Widget build(BuildContext context) {
     final tasksState = ref.watch(routineTasksProvider(widget.elderId));
+
     final permissionsState = ref.watch(
       routinePermissionsProvider(widget.elderId),
     );
+
     final elderState = ref.watch(routineElderProvider(widget.elderId));
+
+    final completionsState = ref.watch(
+      routineCompletionsProvider(widget.elderId),
+    );
+
     final sizes = context.appSizes;
+
+    if (_viewMode == RoutineViewMode.allDays && !_showHistory) {
+      final theme = Theme.of(context);
+
+      return DecoratedBox(
+        decoration: _gradientDecoration(context),
+        child: SafeArea(
+          bottom: false,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: PageHeaderWidget(
+                  title: 'Rotina',
+                  onBackPressed: _goBack,
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: Container(
+                  width: double.infinity,
+                  padding: EdgeInsets.all(sizes.md),
+                  decoration: BoxDecoration(
+                    color: theme.scaffoldBackgroundColor,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(sizes.radiusLg),
+                      topRight: Radius.circular(sizes.radiusLg),
+                    ),
+                  ),
+                  child: _viewControls(context, permissionsState, elderState),
+                ),
+              ),
+              ..._allDaysSlivers(context, tasksState, completionsState),
+              SliverToBoxAdapter(child: SizedBox(height: sizes.xxl * 3)),
+            ],
+          ),
+        ),
+      );
+    }
 
     return DecoratedBox(
       decoration: _gradientDecoration(context),
@@ -683,18 +1233,11 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
           padding: EdgeInsets.only(bottom: sizes.xxl * 3),
           child: Column(
             children: [
-              PageHeaderWidget(
-                title: 'Rotina',
-                onBackPressed: _goBack,
-              ),
+              PageHeaderWidget(title: 'Rotina', onBackPressed: _goBack),
               ContentPanelWidget(
                 borderRadius: BorderRadius.circular(sizes.radiusLg),
                 topPanelPadding: EdgeInsets.all(sizes.md),
-                topPanel: _viewControls(
-                  context,
-                  permissionsState,
-                  elderState,
-                ),
+                topPanel: _viewControls(context, permissionsState, elderState),
                 padding: EdgeInsets.fromLTRB(
                   sizes.md,
                   sizes.lg,
@@ -705,6 +1248,7 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
                   context,
                   tasksState,
                   permissionsState,
+                  completionsState,
                 ),
               ),
             ],
@@ -716,10 +1260,7 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
 }
 
 class _RoutineMessageState extends StatelessWidget {
-  const _RoutineMessageState({
-    required this.icon,
-    required this.message,
-  });
+  const _RoutineMessageState({required this.icon, required this.message});
 
   final IconData icon;
   final String message;
@@ -738,10 +1279,7 @@ class _RoutineMessageState extends StatelessWidget {
 }
 
 class _RoutineInlineMessage extends StatelessWidget {
-  const _RoutineInlineMessage({
-    required this.icon,
-    required this.message,
-  });
+  const _RoutineInlineMessage({required this.icon, required this.message});
 
   final IconData icon;
   final String message;
@@ -775,17 +1313,61 @@ BoxDecoration _gradientDecoration(BuildContext context) {
     gradient: LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors: [
-        context.appGradientColors.bottom,
-        context.appGradientColors.top,
-      ],
+      colors: [context.appGradientColors.bottom, context.appGradientColors.top],
     ),
   );
 }
 
 String _errorMessage(Object error) {
-  return error
+  if (error is FirebaseException) {
+    switch (error.code) {
+      case 'permission-denied':
+        return 'Você não tem permissão para realizar esta ação.';
+
+      case 'unauthenticated':
+        return 'Sua sessão expirou. Entre novamente.';
+
+      case 'unavailable':
+      case 'network-request-failed':
+      case 'deadline-exceeded':
+        return 'Não foi possível conectar ao serviço. '
+            'Verifique sua conexão e tente novamente.';
+
+      case 'not-found':
+        return 'A rotina ou tarefa não foi encontrada.';
+
+      case 'resource-exhausted':
+        return 'O serviço está temporariamente indisponível. '
+            'Tente novamente mais tarde.';
+
+      default:
+        return 'Não foi possível carregar ou atualizar a rotina. '
+            'Tente novamente.';
+    }
+  }
+
+  final rawMessage = error
       .toString()
       .replaceFirst('Bad state: ', '')
-      .replaceFirst('Exception: ', '');
+      .replaceFirst('Exception: ', '')
+      .trim();
+
+  const knownMessages = <String>{
+    'Tarefa não identificada.',
+    'Idoso não identificado.',
+    'Informe o nome da tarefa.',
+    'O término deve ser posterior ao começo.',
+    'Escolha pelo menos um dia para repetir a tarefa.',
+    'Somente o cuidador pode alterar as permissões da rotina.',
+    'Esta tarefa não está programada para esta data.',
+    'A tarefa não foi encontrada.',
+    'Você não tem permissão para concluir esta tarefa.',
+  };
+
+  if (knownMessages.contains(rawMessage)) {
+    return rawMessage;
+  }
+
+  return 'Não foi possível concluir a operação da rotina. '
+      'Tente novamente.';
 }

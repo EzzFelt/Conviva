@@ -11,9 +11,9 @@ class AppColors {
   static const gradientBottom = Color(0xFFF1B041);
 
   // Paleta alternativa de acessibilidade
-  static const greenPrimary = Color(0xFF8EB797);
-  static const greenGradientTop = Color(0xFF8EB797);
-  static const greenGradientBottom = Color(0xFFA7D4B7);
+  static const greenPrimary = Color(0xFF458F55);
+  static const greenGradientTop = Color(0xFF458F55);
+  static const greenGradientBottom = Color(0xFF46DA67);
 
   // Neutral
   static const white = Colors.white;

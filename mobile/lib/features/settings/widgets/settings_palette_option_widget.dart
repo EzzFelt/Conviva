@@ -20,8 +20,11 @@ class SettingsPaletteOptionWidget extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
-    final circleSize = sizes.xxl;
-    final overlap = circleSize * .58;
+    final circleSize = sizes.xxl * 2.2;
+    final sideCircleSize = circleSize * .7;
+    final centerOffset = sideCircleSize * .68;
+    final rightOffset = centerOffset + circleSize * .7;
+    final circlesWidth = rightOffset + sideCircleSize;
 
     return Semantics(
       button: true,
@@ -42,44 +45,84 @@ class SettingsPaletteOptionWidget extends StatelessWidget {
               onTap: onSelected,
               child: SizedBox(
                 width: double.infinity,
-                height: sizes.xxl * 1.65,
+                height: sizes.xxl * 4.2,
                 child: Center(
                   child: SizedBox(
-                    width: circleSize + overlap * 2,
+                    width: circlesWidth,
                     height: circleSize,
                     child: Stack(
-                      children: List.generate(colors.length, (index) {
-                        return Positioned(
-                          left: index * overlap,
-                          child: Container(
-                            width: circleSize,
-                            height: circleSize,
-                            decoration: BoxDecoration(
-                              color: colors[index],
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: colorScheme.outline,
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
+                      children: [
+                        _PaletteCircle(
+                          color: colors[0],
+                          size: sideCircleSize,
+                          left: 0,
+                          top: circleSize * .3,
+                          borderColor: colorScheme.outline,
+                        ),
+                        _PaletteCircle(
+                          color: colors[2],
+                          size: sideCircleSize,
+                          left: rightOffset,
+                          top: 0,
+                          borderColor: colorScheme.outline,
+                        ),
+                        _PaletteCircle(
+                          color: colors[1],
+                          size: circleSize,
+                          left: centerOffset,
+                          top: 0,
+                          borderColor: colorScheme.outline,
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          SizedBox(height: sizes.sm),
+          SizedBox(height: sizes.md),
           ButtonWidget(
             label: selected ? 'Selecionado' : 'Selecionar',
-            size: ButtonSize.small,
+            size: ButtonSize.large,
             variant: selected
                 ? ButtonVariant.secondary
                 : ButtonVariant.outlined,
             onPressed: onSelected,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PaletteCircle extends StatelessWidget {
+  const _PaletteCircle({
+    required this.color,
+    required this.size,
+    required this.left,
+    required this.top,
+    required this.borderColor,
+  });
+
+  final Color color;
+  final double size;
+  final double left;
+  final double top;
+  final Color borderColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: left,
+      top: top,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(color: borderColor),
+        ),
       ),
     );
   }

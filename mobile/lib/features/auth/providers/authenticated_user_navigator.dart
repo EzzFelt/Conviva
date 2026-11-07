@@ -36,7 +36,10 @@ class AuthenticatedUserNavigator {
         } else {
           context.go(
             RouteNames.familyHome,
-            extra: linkedElder['name']?.toString() ?? 'Idoso',
+            extra: {
+              'id': linkedElder['id']?.toString(),
+              'name': linkedElder['name']?.toString() ?? 'Idoso',
+            },
           );
         }
     }

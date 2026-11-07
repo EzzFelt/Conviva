@@ -12,6 +12,7 @@ class RoutineElderSummary {
     this.gender,
     this.bloodType,
     this.dependencyLevel,
+    this.createdAt,
   });
 
   final String id;
@@ -22,6 +23,7 @@ class RoutineElderSummary {
   final String? gender;
   final String? bloodType;
   final String? dependencyLevel;
+  final DateTime? createdAt;
 
   factory RoutineElderSummary.fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> document,
@@ -40,6 +42,9 @@ class RoutineElderSummary {
       gender: _optionalString(data['gender'] ?? data['sex']),
       bloodType: _optionalString(data['bloodType']),
       dependencyLevel: _optionalString(data['dependencyLevel']),
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : null,
     );
   }
 

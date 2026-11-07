@@ -7,11 +7,22 @@ import '../../auth/providers/current_user_provider.dart';
 import '../models/report_draft.dart';
 
 class ReportTarget {
-  const ReportTarget({required this.id, required this.name, this.photoUrl});
+  const ReportTarget({
+    required this.id,
+    required this.name,
+    this.photoUrl,
+    this.phone = '',
+    this.institute = '',
+  });
 
+  /// Vazio quando o acusado foi digitado manualmente ("Outro").
   final String id;
   final String name;
   final String? photoUrl;
+  final String phone;
+  final String institute;
+
+  bool get isManual => id.isEmpty;
 }
 
 final reportTargetsProvider = FutureProvider.autoDispose
@@ -117,8 +128,10 @@ Future<String> submitReport({
     'isRecent': draft.isRecent,
     'isRecurrent': draft.happenedBefore,
     'offenderType': _offenderKindValue(draft.offender),
-    'offenderId': target.id,
+    'offenderId': target.isManual ? null : target.id,
     'offenderName': target.name,
+    if (target.phone.isNotEmpty) 'offenderPhone': target.phone,
+    if (target.institute.isNotEmpty) 'offenderInstitute': target.institute,
     'status': 'pending',
     'createdAt': FieldValue.serverTimestamp(),
   });

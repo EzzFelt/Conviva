@@ -1,3 +1,4 @@
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +8,7 @@ import '../../auth/providers/current_user_provider.dart';
 import '../models/routine_elder_summary.dart';
 import '../models/routine_permissions.dart';
 import '../models/routine_task.dart';
+import '../models/routine_task_completion.dart';
 import '../repositories/routine_repository.dart';
 
 final routineRepositoryProvider = Provider<RoutineRepository>(
@@ -16,12 +18,14 @@ final routineRepositoryProvider = Provider<RoutineRepository>(
 final accessibleRoutineEldersProvider =
     StreamProvider<List<RoutineElderSummary>>((ref) async* {
   final actor = await ref.watch(currentUserProvider.future);
+
   if (actor == null) {
     yield const <RoutineElderSummary>[];
     return;
   }
 
   final repository = ref.watch(routineRepositoryProvider);
+
   yield* repository.watchAccessibleElders(actor);
 });
 
@@ -35,14 +39,33 @@ final routineTasksProvider =
   return ref.watch(routineRepositoryProvider).watchTasks(elderId);
 });
 
+// --------------------------------------------------
+// ROUTINE COMPLETIONS / HISTORY
+// --------------------------------------------------
+
+final routineCompletionsProvider =
+    StreamProvider.family<List<RoutineTaskCompletion>, String>(
+  (ref, elderId) {
+    return ref
+        .watch(routineRepositoryProvider)
+        .watchCompletions(elderId);
+  },
+);
+
 final routinePermissionsProvider =
     StreamProvider.family<RoutinePermissions, String>((ref, elderId) {
   return ref.watch(routineRepositoryProvider).watchPermissions(elderId);
 });
 
+// --------------------------------------------------
+// ROUTINE STATE
+// --------------------------------------------------
+
 @immutable
 class RoutineState {
-  const RoutineState({this.tasks = const <RoutineTask>[]});
+  const RoutineState({
+    this.tasks = const <RoutineTask>[],
+  });
 
   final List<RoutineTask> tasks;
 
@@ -65,13 +88,19 @@ class RoutineState {
     required DateTime moment,
   }) {
     final day = RoutineTask.dateOnly(moment);
-    final candidates = tasksForDay(elderId: elderId, day: day)
-        .where((task) => task.endOn(day).isAfter(moment))
-        .toList();
+
+    final candidates = tasksForDay(
+      elderId: elderId,
+      day: day,
+    ).where((task) => task.endOn(day).isAfter(moment)).toList();
 
     return candidates.isEmpty ? null : candidates.first;
   }
 }
+
+// --------------------------------------------------
+// ROUTINE PERMISSIONS
+// --------------------------------------------------
 
 bool canCreateRoutineTask({
   required UserSession actor,
@@ -79,6 +108,7 @@ bool canCreateRoutineTask({
   required RoutinePermissions permissions,
 }) {
   if (actor.accountType != AccountType.elder) return true;
+
   return actor.uid == elderId && permissions.canElderCreateTasks;
 }
 
@@ -88,6 +118,7 @@ bool canEditRoutineTask({
   required RoutinePermissions permissions,
 }) {
   if (actor.accountType != AccountType.elder) return true;
+
   return actor.uid == task.elderId &&
       task.createdByUserId == actor.uid &&
       permissions.canElderEditOwnTasks;

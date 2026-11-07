@@ -57,6 +57,7 @@ class UserSession {
     String? phone,
     String? email,
     String? photoUrl,
+    bool clearPhotoUrl = false,
   }) {
     return UserSession(
       uid: uid,
@@ -67,7 +68,7 @@ class UserSession {
       status: status,
       email: email ?? this.email,
       elderLinkCode: elderLinkCode,
-      photoUrl: photoUrl ?? this.photoUrl,
+      photoUrl: clearPhotoUrl ? null : (photoUrl ?? this.photoUrl),
     );
   }
 

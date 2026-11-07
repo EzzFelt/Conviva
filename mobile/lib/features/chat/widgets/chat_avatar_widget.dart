@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:conviva/shared/utils/profile_image.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../models/conversation_preview.dart';
@@ -45,7 +46,7 @@ class ChatAvatarWidget extends StatelessWidget {
             child: CircleAvatar(
               backgroundColor: colorScheme.primary.withValues(alpha: .12),
               foregroundImage: hasPhoto
-                  ? NetworkImage(normalizedPhotoUrl)
+                  ? profileImageProvider(normalizedPhotoUrl)
                   : null,
               child: hasPhoto
                   ? null

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:conviva/shared/utils/profile_image.dart';
 
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_colors.dart';
@@ -12,9 +14,12 @@ import '../../../shared/widgets/content_panel_widget.dart';
 import '../../../shared/widgets/info_card_widget.dart';
 import '../../../shared/widgets/page_header_widget.dart';
 import '../../../shared/widgets/text_field_widget.dart';
+import '../../auth/models/account_type.dart';
 import '../../auth/models/user_session.dart';
 import '../../auth/providers/authenticated_user_navigator.dart';
 import '../../auth/providers/current_user_provider.dart';
+import '../../routine/models/routine_elder_summary.dart';
+import '../../routine/providers/routine_provider.dart';
 import '../models/institution_summary.dart';
 import '../providers/institution_summary_provider.dart';
 
@@ -97,161 +102,12 @@ class ProfilePage extends ConsumerWidget {
 
   Future<void> _editProfile(
     BuildContext context,
-    WidgetRef ref,
     UserSession session,
-  ) async {
-    final nameController = TextEditingController(text: session.name);
-    final phoneController = TextEditingController(
-      text: BrazilianPhoneFormatter.format(session.phone),
-    );
-    final formKey = GlobalKey<FormState>();
-    var isSaving = false;
-    String? errorMessage;
-
-    await showAppModal<void>(
+  ) {
+    return showAppModal<void>(
       context: context,
       size: AppModalSize.medium,
-      child: StatefulBuilder(
-        builder: (modalContext, setModalState) {
-          final theme = Theme.of(modalContext);
-          final colorScheme = theme.colorScheme;
-          final sizes = modalContext.appSizes;
-
-          Future<void> save() async {
-            if (!(formKey.currentState?.validate() ?? false)) return;
-
-            setModalState(() {
-              isSaving = true;
-              errorMessage = null;
-            });
-
-            try {
-              await ref.read(currentUserProvider.notifier).updateProfile(
-                    name: nameController.text,
-                    phone: phoneController.text,
-                  );
-
-              if (!modalContext.mounted) return;
-              Navigator.of(modalContext).pop();
-            } catch (error) {
-              if (!modalContext.mounted) return;
-              setModalState(() {
-                isSaving = false;
-                errorMessage = _errorMessage(error);
-              });
-            }
-          }
-
-          return Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Nome completo:',
-                  style: theme.textTheme.bodySmall,
-                ),
-                SizedBox(height: sizes.sm),
-                TextFieldWidget(
-                  controller: nameController,
-                  hintText: 'Nome completo',
-                  textInputAction: TextInputAction.next,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Informe o nome completo.';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: sizes.md),
-                Text(
-                  'Telefone:',
-                  style: theme.textTheme.bodySmall,
-                ),
-                SizedBox(height: sizes.sm),
-                TextFieldWidget(
-                  controller: phoneController,
-                  hintText: '(00) 00000-0000',
-                  keyboardType: TextInputType.phone,
-                  inputFormatters: const [BrazilianPhoneFormatter()],
-                  validator: (value) {
-                    final digits = BrazilianPhoneFormatter.digitsOnly(
-                      value ?? '',
-                    );
-                    if (digits.length < 10 || digits.length > 11) {
-                      return 'Informe um telefone válido.';
-                    }
-                    return null;
-                  },
-                ),
-                if (errorMessage != null) ...[
-                  SizedBox(height: sizes.md),
-                  Text(
-                    errorMessage!,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: colorScheme.error,
-                    ),
-                  ),
-                ],
-                SizedBox(height: sizes.xxl),
-                ButtonWidget(
-                  label: isSaving ? 'Salvando...' : 'Salvar',
-                  variant: ButtonVariant.secondary,
-                  onPressed: isSaving ? null : save,
-                ),
-                SizedBox(height: sizes.md),
-                ButtonWidget(
-                  label: 'Cancelar',
-                  onPressed: isSaving
-                      ? null
-                      : () => Navigator.of(modalContext).pop(),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    nameController.dispose();
-    phoneController.dispose();
-  }
-
-  Widget _avatar(BuildContext context, UserSession session) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final sizes = context.appSizes;
-    final photoUrl = session.photoUrl?.trim();
-
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: colorScheme.surface, width: sizes.xs),
-      ),
-      child: CircleAvatar(
-        radius: sizes.xxl,
-        backgroundColor: colorScheme.primary.withValues(alpha: .14),
-        child: photoUrl != null && photoUrl.isNotEmpty
-            ? ClipOval(
-                child: Image.network(
-                  photoUrl,
-                  width: sizes.xxl * 2,
-                  height: sizes.xxl * 2,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Icon(
-                    Icons.person_rounded,
-                    size: sizes.icon(sizes.xxl),
-                    color: colorScheme.primary,
-                  ),
-                ),
-              )
-            : Icon(
-                Icons.person_rounded,
-                size: sizes.icon(sizes.xxl),
-                color: colorScheme.primary,
-              ),
-      ),
+      child: _EditProfileForm(session: session),
     );
   }
 
@@ -286,10 +142,53 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
+  Widget _institutionContent(
+    BuildContext context, {
+    required String name,
+    String? address,
+    String? code,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+    final hasAddress = address != null && address.isNotEmpty;
+    final hasCode = code != null && code.isNotEmpty;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleMedium,
+        ),
+        if (hasAddress)
+          Text(
+            address,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        if (hasCode) ...[
+          SizedBox(height: sizes.xs),
+          Text(
+            'Código: $code',
+            style: theme.textTheme.bodySmall?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Widget _institutionCard(
     BuildContext context,
     AsyncValue<InstitutionSummary> institutionState,
-    String institutionId,
   ) {
     final sizes = context.appSizes;
     final borderRadius = BorderRadius.circular(sizes.radiusMd);
@@ -304,17 +203,128 @@ class ProfilePage extends ConsumerWidget {
       ),
       error: (_, _) => InfoCardWidget(
         leading: _institutionVisual(context, null),
-        title: 'Instituição',
-        subtitle: 'Código: $institutionId',
+        content: _institutionContent(
+          context,
+          name: 'Instituição',
+          address: 'Não foi possível carregar os dados.',
+        ),
         size: InfoCardSize.small,
         borderRadius: borderRadius,
       ),
       data: (institution) => InfoCardWidget(
         leading: _institutionVisual(context, institution.photoUrl),
-        title: institution.name,
-        subtitle: institution.address,
+        content: _institutionContent(
+          context,
+          name: institution.name,
+          address: institution.address,
+          code: institution.code,
+        ),
         size: InfoCardSize.small,
         borderRadius: borderRadius,
+      ),
+    );
+  }
+
+  Widget _sectionMessage(BuildContext context, String message) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: context.appSizes.md),
+      child: Center(
+        child: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _linkedEldersSection(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<InstitutionSummary> institutionState,
+  ) {
+    final sizes = context.appSizes;
+    final eldersState = ref.watch(accessibleRoutineEldersProvider);
+    final institutionName = institutionState.value?.name;
+
+    return eldersState.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, _) => _sectionMessage(
+        context,
+        'Não foi possível carregar os parentes vinculados.',
+      ),
+      data: (elders) {
+        if (elders.isEmpty) {
+          return _sectionMessage(context, 'Nenhum parente vinculado ainda.');
+        }
+
+        return Column(
+          children: [
+            for (final elder in elders)
+              Padding(
+                padding: EdgeInsets.only(bottom: sizes.sm),
+                child: _linkedElderCard(context, elder, institutionName),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _linkedElderCard(
+    BuildContext context,
+    RoutineElderSummary elder,
+    String? institutionName,
+  ) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+    final photo = profileImageProvider(elder.photoUrl);
+    final details = [
+      if (institutionName != null && institutionName.isNotEmpty)
+        institutionName,
+      if (elder.createdAt != null) 'Desde ${elder.createdAt!.year}',
+    ].join(' - ');
+
+    return InfoCardWidget(
+      size: InfoCardSize.small,
+      borderRadius: BorderRadius.circular(sizes.radiusMd),
+      leading: CircleAvatar(
+        backgroundColor: colorScheme.primary.withValues(alpha: .14),
+        foregroundImage: photo,
+        child: photo == null
+            ? Icon(Icons.person_rounded, color: colorScheme.primary)
+            : null,
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            elder.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (details.isNotEmpty)
+            Text(
+              details,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -358,7 +368,7 @@ class ProfilePage extends ConsumerWidget {
       ),
       trailing: IconButton.filled(
         tooltip: 'Editar informações',
-        onPressed: () => _editProfile(context, ref, session),
+        onPressed: () => _editProfile(context, session),
         style: IconButton.styleFrom(
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
@@ -380,9 +390,13 @@ class ProfilePage extends ConsumerWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
+    final isFamily = session.accountType == AccountType.family;
     final phone = session.phone.isEmpty
         ? 'Não informado'
         : BrazilianPhoneFormatter.format(session.phone);
+    final subtitle = isFamily
+        ? (session.phone.isEmpty ? 'Parente' : '$phone - Parente')
+        : phone;
 
     return SingleChildScrollView(
       padding: EdgeInsets.only(bottom: sizes.xxl * 3),
@@ -396,20 +410,22 @@ class ProfilePage extends ConsumerWidget {
           ),
           SizedBox(height: sizes.xs),
           Text(
-            phone,
+            subtitle,
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
           ),
           SizedBox(height: sizes.lg),
-          Text('Instituto', style: theme.textTheme.titleMedium),
-          SizedBox(height: sizes.sm),
-          _institutionCard(
-            context,
-            institutionState,
-            session.institutionId,
-          ),
+          if (isFamily) ...[
+            Text('Parentes Vinculados', style: theme.textTheme.titleMedium),
+            SizedBox(height: sizes.sm),
+            _linkedEldersSection(context, ref, institutionState),
+          ] else ...[
+            Text('Instituto', style: theme.textTheme.titleMedium),
+            SizedBox(height: sizes.sm),
+            _institutionCard(context, institutionState),
+          ],
           SizedBox(height: sizes.lg),
           Text(
             'Suas informações',
@@ -494,7 +510,7 @@ class ProfilePage extends ConsumerWidget {
                     top: 0,
                     left: 0,
                     right: 0,
-                    child: Center(child: _avatar(context, session)),
+                    child: Center(child: _ProfileAvatar(session: session)),
                   ),
                 ],
               ),
@@ -530,6 +546,321 @@ class ProfilePage extends ConsumerWidget {
 
           return _content(context, ref, session);
         },
+      ),
+    );
+  }
+}
+
+
+/// Formulário de edição do perfil.
+///
+/// Os controllers e a chave do formulário pertencem ao State deste widget:
+/// são descartados só quando o dialog sai da árvore (depois da animação de
+/// fechamento), e não logo após o `pop`.
+class _EditProfileForm extends ConsumerStatefulWidget {
+  const _EditProfileForm({required this.session});
+
+  final UserSession session;
+
+  @override
+  ConsumerState<_EditProfileForm> createState() => _EditProfileFormState();
+}
+
+class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late final TextEditingController _phoneController;
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.session.name);
+    _phoneController = TextEditingController(
+      text: BrazilianPhoneFormatter.format(widget.session.phone),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    super.dispose();
+  }
+
+  String _formatError(Object error) {
+    return error
+        .toString()
+        .replaceFirst('Bad state: ', '')
+        .replaceFirst('Exception: ', '');
+  }
+
+  Future<void> _save() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await ref.read(currentUserProvider.notifier).updateProfile(
+            name: _nameController.text,
+            phone: _phoneController.text,
+          );
+
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _errorMessage = _formatError(error);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+
+    return Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Nome completo:', style: theme.textTheme.bodySmall),
+          SizedBox(height: sizes.sm),
+          TextFieldWidget(
+            controller: _nameController,
+            hintText: 'Nome completo',
+            textInputAction: TextInputAction.next,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Informe o nome completo.';
+              }
+              return null;
+            },
+          ),
+          SizedBox(height: sizes.md),
+          Text('Telefone:', style: theme.textTheme.bodySmall),
+          SizedBox(height: sizes.sm),
+          TextFieldWidget(
+            controller: _phoneController,
+            hintText: '(00) 00000-0000',
+            keyboardType: TextInputType.phone,
+            inputFormatters: const [BrazilianPhoneFormatter()],
+            validator: (value) {
+              final digits = BrazilianPhoneFormatter.digitsOnly(value ?? '');
+              if (digits.length < 10 || digits.length > 11) {
+                return 'Informe um telefone válido.';
+              }
+              return null;
+            },
+          ),
+          if (_errorMessage != null) ...[
+            SizedBox(height: sizes.md),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.error,
+              ),
+            ),
+          ],
+          SizedBox(height: sizes.xxl),
+          ButtonWidget(
+            label: _isSaving ? 'Salvando...' : 'Salvar',
+            variant: ButtonVariant.secondary,
+            onPressed: _isSaving ? null : _save,
+          ),
+          SizedBox(height: sizes.md),
+          ButtonWidget(
+            label: 'Cancelar',
+            onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _PhotoAction { gallery, camera, remove }
+
+/// Avatar do perfil com troca de foto (galeria, câmera ou remover).
+class _ProfileAvatar extends ConsumerStatefulWidget {
+  const _ProfileAvatar({required this.session});
+
+  final UserSession session;
+
+  @override
+  ConsumerState<_ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
+  bool _isBusy = false;
+
+  bool get _hasPhoto =>
+      profileImageProvider(widget.session.photoUrl) != null;
+
+  Future<void> _changePhoto() async {
+    if (_isBusy) return;
+
+    final action = await showModalBottomSheet<_PhotoAction>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded),
+              title: const Text('Escolher da galeria'),
+              onTap: () => Navigator.pop(sheetContext, _PhotoAction.gallery),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded),
+              title: const Text('Tirar foto'),
+              onTap: () => Navigator.pop(sheetContext, _PhotoAction.camera),
+            ),
+            if (_hasPhoto)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded),
+                title: const Text('Remover foto'),
+                onTap: () => Navigator.pop(sheetContext, _PhotoAction.remove),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (action == null || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final notifier = ref.read(currentUserProvider.notifier);
+
+    setState(() => _isBusy = true);
+
+    try {
+      if (action == _PhotoAction.remove) {
+        await notifier.removeProfilePhoto();
+      } else {
+        final image = await ImagePicker().pickImage(
+          source: action == _PhotoAction.camera
+              ? ImageSource.camera
+              : ImageSource.gallery,
+          maxWidth: 400,
+          maxHeight: 400,
+          imageQuality: 70,
+        );
+        if (image == null) return;
+
+        final bytes = await image.readAsBytes();
+        final extension = image.name.contains('.')
+            ? image.name.split('.').last
+            : 'jpg';
+
+        await notifier.updateProfilePhoto(
+          bytes: bytes,
+          extension: extension,
+        );
+      }
+    } catch (error) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível atualizar a foto. Tente novamente.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final sizes = context.appSizes;
+    final photoUrl = widget.session.photoUrl?.trim();
+    final photoProvider = profileImageProvider(photoUrl);
+    final diameter = sizes.xxl * 2;
+
+    return GestureDetector(
+      onTap: _changePhoto,
+      child: Semantics(
+        button: true,
+        label: 'Alterar foto de perfil',
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: colorScheme.surface, width: sizes.xs),
+              ),
+              child: CircleAvatar(
+                radius: sizes.xxl,
+                backgroundColor: colorScheme.primary.withValues(alpha: .14),
+                child: ClipOval(
+                  child: SizedBox.square(
+                    dimension: diameter,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (photoProvider != null)
+                          Image(
+                            image: photoProvider,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => _fallbackIcon(
+                              colorScheme,
+                              sizes,
+                            ),
+                          )
+                        else
+                          _fallbackIcon(colorScheme, sizes),
+                        if (_isBusy)
+                          ColoredBox(
+                            color: colorScheme.surface.withValues(alpha: .6),
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                padding: EdgeInsets.all(sizes.xs * 1.5),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: colorScheme.surface, width: 2),
+                ),
+                child: Icon(
+                  Icons.camera_alt_rounded,
+                  size: sizes.icon(sizes.md),
+                  color: colorScheme.onPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackIcon(ColorScheme colorScheme, AppSizesTheme sizes) {
+    return Center(
+      child: Icon(
+        Icons.person_rounded,
+        size: sizes.icon(sizes.xxl),
+        color: colorScheme.primary,
       ),
     );
   }

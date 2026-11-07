@@ -30,9 +30,11 @@ class TextFieldWidget extends StatelessWidget {
     this.onTap,
     this.prefixIcon,
     this.suffixIcon,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final TextEditingController controller;
+  
   final String hintText;
   final TextInputType keyboardType;
   final TextInputAction? textInputAction;
@@ -50,6 +52,8 @@ class TextFieldWidget extends StatelessWidget {
   final VoidCallback? onTap;
   final Widget? prefixIcon;
   final Widget? suffixIcon;
+  final TextCapitalization textCapitalization;
+  
 
   @override
   Widget build(BuildContext context) {

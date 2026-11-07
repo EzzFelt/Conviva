@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../routine/models/routine_task.dart';
+import 'routine_task_icon.dart';
 
 class NextTaskCard extends StatelessWidget {
   const NextTaskCard({
@@ -19,21 +20,6 @@ class NextTaskCard extends StatelessWidget {
   final String emptyMessage;
   final bool isLoading;
   final VoidCallback? onPressed;
-
-  IconData _taskIcon() {
-    return switch (task?.type) {
-      RoutineTaskType.breakfast => Icons.breakfast_dining_rounded,
-      RoutineTaskType.medication => Icons.medication_rounded,
-      RoutineTaskType.meal => Icons.restaurant_rounded,
-      RoutineTaskType.exercise => Icons.directions_walk_rounded,
-      RoutineTaskType.leisure => Icons.interests_rounded,
-      RoutineTaskType.appointment => Icons.medical_services_rounded,
-      RoutineTaskType.hygiene => Icons.shower_rounded,
-      RoutineTaskType.sleep => Icons.bed_rounded,
-      RoutineTaskType.other => Icons.event_available_rounded,
-      null => Icons.event_available_rounded,
-    };
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,7 +90,7 @@ class NextTaskCard extends StatelessWidget {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Icon(
-                                          _taskIcon(),
+                                          routineTaskIcon(task?.type),
                                           size: sizes.xxl + sizes.md,
                                           color: colorScheme.onPrimary,
                                         ),

@@ -3,12 +3,16 @@ class InstitutionSummary {
     required this.id,
     required this.name,
     required this.address,
+    this.code,
     this.photoUrl,
   });
 
   final String id;
   final String name;
   final String address;
+
+  /// Código público da instituição (campo `code`), usado no cadastro.
+  final String? code;
   final String? photoUrl;
 
   factory InstitutionSummary.fromMap({
@@ -29,9 +33,8 @@ class InstitutionSummary {
       name: _firstValue(data, ['name', 'nome']).isEmpty
           ? 'Instituição'
           : _firstValue(data, ['name', 'nome']),
-      address: addressParts.isEmpty
-          ? 'Código: $id'
-          : addressParts.join(', '),
+      address: addressParts.join(', '),
+      code: _optionalValue(data, ['code', 'codigo']),
       photoUrl: _optionalValue(data, ['photoUrl', 'imageUrl', 'logoUrl']),
     );
   }

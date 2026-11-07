@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
@@ -34,8 +35,135 @@ class AppSettings {
   final bool reminderNotifications;
   final double colorIntensity;
 
+  /// Converte as preferências da conta para um mapa
+  /// que poderá ser salvo no Firestore e no cache local.
+  ///
+  /// O volume fica de fora porque pertence ao dispositivo.
+  Map<String, dynamic> toCloudMap() {
+    return {
+      'primaryColor': primaryColor.toARGB32(),
+      'gradientTop': gradientTop.toARGB32(),
+      'gradientBottom': gradientBottom.toARGB32(),
+      'fontScale': fontScale,
+      'titleFontWeight': titleFontWeight.value,
+      'bodyFontWeight': bodyFontWeight.value,
+      'iconScale': iconScale,
+      'buttonScale': buttonScale,
+      'spacingScale': spacingScale,
+      'messageNotifications': messageNotifications,
+      'reminderNotifications': reminderNotifications,
+      'colorIntensity': colorIntensity,
+    };
+  }
+
+  /// Reconstrói as configurações a partir dos dados salvos.
+  /// Se algum campo estiver ausente ou inválido, usa o padrão.
+  factory AppSettings.fromMap(Map<String, dynamic> map) {
+    const defaults = AppSettings();
+
+    return AppSettings(
+      primaryColor: _readColor(
+        map['primaryColor'],
+        defaults.primaryColor,
+      ),
+      gradientTop: _readColor(
+        map['gradientTop'],
+        defaults.gradientTop,
+      ),
+      gradientBottom: _readColor(
+        map['gradientBottom'],
+        defaults.gradientBottom,
+      ),
+      fontScale: _readDouble(
+        map['fontScale'],
+        defaults.fontScale,
+        min: 0.85,
+        max: 1.40,
+      ),
+      titleFontWeight: _readFontWeight(
+        map['titleFontWeight'],
+        defaults.titleFontWeight,
+      ),
+      bodyFontWeight: _readFontWeight(
+        map['bodyFontWeight'],
+        defaults.bodyFontWeight,
+      ),
+      iconScale: _readDouble(
+        map['iconScale'],
+        defaults.iconScale,
+        min: 0.85,
+        max: 1.40,
+      ),
+      buttonScale: _readDouble(
+        map['buttonScale'],
+        defaults.buttonScale,
+        min: 0.90,
+        max: 1.30,
+      ),
+      spacingScale: _readDouble(
+        map['spacingScale'],
+        defaults.spacingScale,
+        min: 0.90,
+        max: 1.20,
+      ),
+      volume: _readDouble(
+        map['volume'],
+        defaults.volume,
+        min: 0,
+        max: 1,
+      ),
+      messageNotifications:
+          map['messageNotifications'] is bool
+              ? map['messageNotifications'] as bool
+              : defaults.messageNotifications,
+      reminderNotifications:
+          map['reminderNotifications'] is bool
+              ? map['reminderNotifications'] as bool
+              : defaults.reminderNotifications,
+      colorIntensity: _readDouble(
+        map['colorIntensity'],
+        defaults.colorIntensity,
+        min: 0.5,
+        max: 1,
+      ),
+    );
+  }
+
+  static Color _readColor(Object? value, Color fallback) {
+    if (value is! num) return fallback;
+
+    return Color(value.toInt());
+  }
+
+  static double _readDouble(
+    Object? value,
+    double fallback, {
+    required double min,
+    required double max,
+  }) {
+    if (value is! num) return fallback;
+
+    return value.toDouble().clamp(min, max).toDouble();
+  }
+
+  static FontWeight _readFontWeight(
+    Object? value,
+    FontWeight fallback,
+  ) {
+    if (value is! num) return fallback;
+
+    for (final weight in FontWeight.values) {
+      if (weight.value == value.toInt()) {
+        return weight;
+      }
+    }
+
+    return fallback;
+  }
+
   Color applyIntensity(Color color) {
     final hsl = HSLColor.fromColor(color);
+
     return hsl
         .withSaturation(
           (hsl.saturation * colorIntensity).clamp(0, 1).toDouble(),

@@ -22,6 +22,7 @@ class AccountTypePage extends StatelessWidget {
   final VoidCallback onBack;
   final AuthMode authMode;
 
+
   void _navigate(
     BuildContext context,
     AccountType accountType,
@@ -36,13 +37,19 @@ class AccountTypePage extends StatelessWidget {
         RouteNames.register,
         extra: arguments,
       );
-    } else {
-      context.go(
-        RouteNames.login,
-        extra: arguments,
-      );
+      return;
     }
+
+    final destination = accountType == AccountType.elder
+        ? RouteNames.elderLogin
+        : RouteNames.login;
+
+    context.go(
+      destination,
+      extra: arguments,
+    );
   }
+
 
   @override
   Widget build(BuildContext context) {

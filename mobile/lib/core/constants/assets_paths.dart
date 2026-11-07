@@ -11,6 +11,10 @@ class AssetPaths {
   static const caregiverAvatar = 'assets/images/onboarding/cuidador_acc.png';
   static const familyAvatar = 'assets/images/onboarding/familia_acc.png';
 
+  // Menu (ilustrações das telas do Figma)
+  static const menuFamilyRoutine = 'assets/images/menu/family_routine.png';
+  static const menuFamilyChat = 'assets/images/menu/family_chat.png';
+
   // Logo
   static const logo = 'assets/images/logo/logo.png';
 

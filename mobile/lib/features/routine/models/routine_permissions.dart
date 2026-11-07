@@ -20,10 +20,22 @@ class RoutinePermissions {
     DocumentSnapshot<Map<String, dynamic>> document,
   ) {
     final data = document.data();
+
+    // Sem documento de permissões, mantém os valores padrão.
+    if (!document.exists || data == null) {
+      return RoutinePermissions(
+        elderId: document.id,
+      );
+    }
+
+    // Se o documento existe, somente permissões explicitamente
+    // habilitadas são consideradas ativas.
     return RoutinePermissions(
       elderId: document.id,
-      canElderCreateTasks: data?['canElderCreateTasks'] != false,
-      canElderEditOwnTasks: data?['canElderEditOwnTasks'] != false,
+      canElderCreateTasks:
+          data['canElderCreateTasks'] == true,
+      canElderEditOwnTasks:
+          data['canElderEditOwnTasks'] == true,
     );
   }
 

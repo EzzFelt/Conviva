@@ -109,11 +109,16 @@ class AppRouter {
           GoRoute(
             path: RouteNames.familyHome,
             builder: (context, state) {
-              final elderName = state.extra is String
-                  ? state.extra! as String
-                  : 'Idoso';
+              final extra = state.extra;
+              final elderData = extra is Map<String, dynamic>
+                  ? extra
+                  : const <String, dynamic>{};
+              final elderId = elderData['id']?.toString();
+              final elderName =
+                  elderData['name']?.toString() ??
+                  (extra is String ? extra : 'Idoso');
 
-              return FamilyHomePage(elderName: elderName);
+              return FamilyHomePage(elderId: elderId, elderName: elderName);
             },
           ),
           GoRoute(
@@ -173,12 +178,20 @@ class AppRouter {
           GoRoute(
             path: RouteNames.reportOffenderChoice,
             builder: (context, state) =>
-                ReportOffenderChoicePage(draft: state.extra! as ReportDraft),
+                ReportOffenderChoicePage(
+                  draft: state.extra is ReportDraft
+                      ? state.extra! as ReportDraft
+                      : null,
+                ),
           ),
           GoRoute(
             path: RouteNames.reportSelectPerson,
             builder: (context, state) =>
-                ReportSelectPersonPage(draft: state.extra! as ReportDraft),
+                ReportSelectPersonPage(
+                  draft: state.extra is ReportDraft
+                      ? state.extra! as ReportDraft
+                      : null,
+                ),
           ),
           GoRoute(
             path: RouteNames.reportSuccess,
