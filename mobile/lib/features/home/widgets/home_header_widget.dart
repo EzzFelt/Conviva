@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:conviva/shared/utils/profile_image.dart';
+import 'package:conviva/shared/utils/first_two_names.dart';
 
 import 'package:conviva/core/constants/app_sizes.dart';
 import '../../notifications/widgets/notification_center_button_widget.dart';
@@ -29,6 +30,7 @@ class HomeHeaderWidget extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
     final normalizedPhotoUrl = photoUrl?.trim();
+    final displayName = firstTwoNames(name);
     final hasPhoto =
         normalizedPhotoUrl != null && normalizedPhotoUrl.isNotEmpty;
     final titleStyle = theme.textTheme.titleLarge?.copyWith(
@@ -51,7 +53,7 @@ class HomeHeaderWidget extends StatelessWidget {
                 Icon(
                   Icons.person_rounded,
                   color: colorScheme.primary,
-                  size: sizes.xxl,
+                  size: sizes.icon(sizes.xxl),
                 ),
           ),
           SizedBox(width: sizes.md),
@@ -66,7 +68,7 @@ class HomeHeaderWidget extends StatelessWidget {
                     children: [
                       TextSpan(text: '$greeting '),
                       TextSpan(
-                        text: name,
+                        text: displayName,
                         style: titleStyle?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),

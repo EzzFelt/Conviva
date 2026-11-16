@@ -12,8 +12,139 @@ import 'package:conviva/features/routine/providers/routine_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
+
+  testWidgets('switches the elder shown on the family home', (tester) async {
+    final firstElder = RoutineElderSummary(
+      id: 'elder-1',
+      name: 'Primeiro idoso',
+      phone: '',
+      institutionId: 'institution-1',
+    );
+    final secondElder = RoutineElderSummary(
+      id: 'elder-2',
+      name: 'Segundo idoso',
+      phone: '',
+      institutionId: 'institution-1',
+    );
+    final today = DateTime.now();
+
+    RoutineTask taskFor(RoutineElderSummary elder, String title) {
+      final now = DateTime.now();
+      return RoutineTask(
+        id: 'task-${elder.id}',
+        elderId: elder.id,
+        title: title,
+        startAt: DateTime(now.year, now.month, now.day, 9),
+        endAt: DateTime(now.year, now.month, now.day, 10),
+        createdByUserId: elder.id,
+        createdByRole: RoutineTaskCreatorRole.elder,
+      );
+    }
+
+    final firstConversation = ConversationPreview(
+      id: 'conversation-1',
+      participantId: firstElder.id,
+      participantName: firstElder.name,
+      lastMessage: 'Mensagem do primeiro idoso',
+      participantType: ConversationParticipantType.elder,
+      lastMessageAt: DateTime(today.year, today.month, today.day, 12),
+    );
+    final secondConversation = ConversationPreview(
+      id: 'conversation-2',
+      participantId: secondElder.id,
+      participantName: secondElder.name,
+      lastMessage: 'Mensagem do segundo idoso',
+      participantType: ConversationParticipantType.elder,
+      lastMessageAt: DateTime(today.year, today.month, today.day, 13),
+    );
+
+    tester.view.physicalSize = const Size(365, 802);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final providerOverrides = [
+      currentUserProvider.overrideWith(_TestCurrentUserNotifier.new),
+      accessibleRoutineEldersProvider.overrideWith(
+        (_) => Stream.value([firstElder, secondElder]),
+      ),
+      linkedFamilyIdsProvider.overrideWith(
+        (_) => Stream.value({firstElder.id, secondElder.id}),
+      ),
+      conversationPreviewsProvider.overrideWith(
+        (_) => Stream.value([firstConversation, secondConversation]),
+      ),
+      routineTasksProvider(
+        firstElder.id,
+      ).overrideWith((_) => Stream.value([taskFor(firstElder, 'Rotina um')])),
+      routineTasksProvider(secondElder.id).overrideWith(
+        (_) => Stream.value([taskFor(secondElder, 'Rotina dois')]),
+      ),
+    ];
+
+    Widget homeApp({Key? pageKey}) {
+      return ProviderScope(
+        overrides: providerOverrides,
+        child: MaterialApp(
+          theme: AppTheme.light(const AppSettings()),
+          home: FamilyHomePage(key: pageKey, elderId: 'elder-1'),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(homeApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rotina um'), findsOneWidget);
+    expect(find.text('Mensagem do primeiro idoso'), findsOneWidget);
+    expect(find.text('Mensagem do segundo idoso'), findsNothing);
+    expect(find.text('12:00'), findsOneWidget);
+    expect(find.text('Adicionar Familiar'), findsOneWidget);
+    expect(find.text('Trocar o idoso visualizado'), findsOneWidget);
+    expect(
+      tester.getRect(find.byKey(const ValueKey('family-elder-selector'))).top,
+      lessThan(
+        tester.getRect(find.byKey(const ValueKey('family-routine-card'))).top,
+      ),
+    );
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('family-elder-selector')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('family-elder-selector')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Segundo idoso').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rotina dois'), findsOneWidget);
+    expect(find.text('Rotina um'), findsNothing);
+    expect(find.text('Mensagem do segundo idoso'), findsOneWidget);
+    expect(find.text('Mensagem do primeiro idoso'), findsNothing);
+    expect(
+      await SharedPreferencesAsync().getString(
+        'conviva_family_selected_elder_family-1',
+      ),
+      secondElder.id,
+    );
+
+    await tester.pumpWidget(homeApp(pageKey: const ValueKey('restored-home')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rotina dois'), findsOneWidget);
+    expect(find.text('Mensagem do segundo idoso'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('renders routine tasks inside the scrollable family home', (
     tester,
   ) async {
@@ -110,9 +241,7 @@ void main() {
           conversationPreviewsProvider.overrideWith(
             (_) => Stream.value([conversation]),
           ),
-          routineTasksProvider(
-            elder.id,
-          ).overrideWith(
+          routineTasksProvider(elder.id).overrideWith(
             (_) => Stream.value([
               task,
               secondTask,
@@ -152,6 +281,29 @@ void main() {
     expect(find.text('Converse com seu\nparente'), findsOneWidget);
     expect(find.text('Última mensagem'), findsOneWidget);
     expect(find.text('Oi'), findsOneWidget);
+    final addFamilyButton = tester.widget<OutlinedButton>(
+      find.byKey(const ValueKey('family-add-elder-button')),
+    );
+    final addFamilyButtonRect = tester.getRect(
+      find.byKey(const ValueKey('family-add-elder-button')),
+    );
+    expect(addFamilyButtonRect.width, 280);
+    expect(
+      addFamilyButton.style?.backgroundColor?.resolve(const <WidgetState>{}),
+      AppTheme.light(const AppSettings()).colorScheme.surfaceContainerLow,
+    );
+    expect(
+      addFamilyButton.style?.side?.resolve(const <WidgetState>{})?.style,
+      BorderStyle.solid,
+    );
+    final addFamilyButtonShape = addFamilyButton.style?.shape?.resolve(
+      const <WidgetState>{},
+    );
+    expect(addFamilyButtonShape, isA<RoundedRectangleBorder>());
+    expect(
+      tester.getRect(find.text('Adicionar Familiar')).center.dx,
+      closeTo(tester.view.physicalSize.width / 2, 1),
+    );
 
     final routineCardRect = tester.getRect(
       find.byKey(const ValueKey('family-routine-card')),
@@ -173,6 +325,7 @@ void main() {
       find.byKey(const ValueKey('family-message-send-button')),
     );
     expect(messageBubbleRect.width, greaterThan(200));
+    expect(addFamilyButtonRect.top, greaterThan(messageBubbleRect.bottom));
     expect(messageTimeRect.right, lessThanOrEqualTo(sendButtonRect.left));
     expect(tester.takeException(), isNull);
 

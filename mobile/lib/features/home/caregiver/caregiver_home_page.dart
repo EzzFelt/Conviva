@@ -14,6 +14,8 @@ import '../../auth/providers/current_user_provider.dart';
 import '../../chat/models/conversation_preview.dart';
 import '../../chat/providers/conversation_previews_provider.dart';
 import '../../chat/widgets/chat_avatar_widget.dart';
+import '../../chat/widgets/conversation_card_content.dart';
+import '../../chat/utils/conversation_preview_sorter.dart';
 import '../../routine/models/routine_elder_summary.dart';
 import '../../routine/models/routine_task.dart';
 import '../../routine/models/routine_task_completion.dart';
@@ -56,6 +58,13 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
   Widget build(BuildContext context) {
     final gradientColors = context.appGradientColors;
     final sizes = context.appSizes;
+    final bottomScrollPadding =
+        sizes.lg +
+        sizes.xxl +
+        sizes.xl +
+        sizes.sm +
+        MediaQuery.viewPaddingOf(context).bottom +
+        sizes.lg;
     final sessionState = ref.watch(currentUserProvider);
     final session = sessionState.hasValue ? sessionState.requireValue : null;
     final sessionName = session?.name.trim() ?? '';
@@ -95,6 +104,15 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
             completionStates: completionStates,
             now: _now,
           );
+    final eldersWithoutTasks = pendingTasks == null
+        ? const <RoutineElderSummary>[]
+        : [
+            for (var index = 0; index < elderItems.length; index++)
+              if (taskStates[index].requireValue.isEmpty) elderItems[index],
+          ];
+    final attentionCount = pendingTasks == null
+        ? null
+        : pendingTasks.length + eldersWithoutTasks.length;
     final residentsSubtitle = elders.when(
       data: (items) => items.length == 1
           ? '1 pessoa sob cuidado'
@@ -102,11 +120,13 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
       loading: () => 'Carregando residentes...',
       error: (_, _) => 'Não foi possível carregar os residentes',
     );
-    final attentionSubtitle = pendingTasks == null
+    final attentionSubtitle = attentionCount == null
         ? 'Requer sua atenção'
-        : pendingTasks.length == 1
+        : attentionCount == 0
+        ? 'Nenhuma pendência'
+        : attentionCount == 1
         ? '1 pendência'
-        : '${pendingTasks.length} pendências';
+        : '$attentionCount pendências';
 
     return Scaffold(
       body: DecoratedBox(
@@ -119,15 +139,17 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
         ),
         child: SafeArea(
           bottom: false,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                HomeHeaderWidget(
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: HomeHeaderWidget(
                   name: name,
                   photoUrl: photoUrl,
                   subtitle: '$residentsSubtitle\n$attentionSubtitle',
                 ),
-                ContentPanelWidget(
+              ),
+              SliverToBoxAdapter(
+                child: ContentPanelWidget(
                   topPanelPadding: EdgeInsets.fromLTRB(
                     sizes.lg,
                     sizes.lg,
@@ -136,13 +158,14 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
                   ),
                   topPanel: _PendingRoutineAttention(
                     pendingTasks: pendingTasks,
+                    eldersWithoutTasks: eldersWithoutTasks,
                     hasError: routineError,
                   ),
                   padding: EdgeInsets.fromLTRB(
                     sizes.lg,
                     sizes.xl + sizes.sm,
                     sizes.lg,
-                    sizes.xxl,
+                    bottomScrollPadding,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -157,8 +180,8 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -184,7 +207,7 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
   ) {
     return conversations.when(
       data: (items) {
-        final recent = items.take(3).toList();
+        final recent = sortConversationsByLatestMessage(items).take(3).toList();
         if (recent.isEmpty) {
           return _emptyState(context, 'Você ainda não possui conversas.');
         }
@@ -215,21 +238,23 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
     BuildContext context,
     ConversationPreview conversation,
   ) {
-    final subtitle = conversation.lastMessage.trim().isEmpty
-        ? 'Toque para iniciar uma conversa'
-        : conversation.lastMessage;
-
     return InfoCardWidget(
       leading: ChatAvatarWidget(
         participantType: conversation.participantType,
         photoUrl: conversation.photoUrl,
         unreadCount: conversation.unreadCount,
-        size: context.appSizes.buttonSmall * .75 - context.appSizes.xs,
+        size: context.appSizes.buttonSmall,
       ),
-      title: conversation.participantName,
-      subtitle: subtitle,
+      content: ConversationCardContent(
+        conversation: conversation,
+        showTimestamp: false,
+      ),
       size: InfoCardSize.small,
-      showGotoButton: true,
+      trailing: ConversationCardTrailingWidget(
+        conversation: conversation,
+        onPressed: () =>
+            context.go(RouteNames.chatConversationPath(conversation.id)),
+      ),
       onPressed: () =>
           context.go(RouteNames.chatConversationPath(conversation.id)),
     );
@@ -283,7 +308,7 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
             child: Row(
               children: [
                 CircleAvatar(
-                  radius: sizes.lg,
+                  radius: sizes.lg + sizes.xs,
                   backgroundColor: colorScheme.primary.withValues(alpha: .12),
                   foregroundImage: hasPhoto
                       ? profileImageProvider(photoUrl)
@@ -293,7 +318,7 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
                       : Icon(
                           Icons.elderly_rounded,
                           color: colorScheme.primary,
-                          size: sizes.md,
+                          size: sizes.icon(sizes.md),
                         ),
                 ),
                 SizedBox(width: sizes.md),
@@ -302,7 +327,7 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
                     elder.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
+                    style: theme.textTheme.titleSmall?.copyWith(
                       color: colorScheme.onSurface,
                     ),
                   ),
@@ -361,10 +386,12 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
 class _PendingRoutineAttention extends StatelessWidget {
   const _PendingRoutineAttention({
     required this.pendingTasks,
+    required this.eldersWithoutTasks,
     required this.hasError,
   });
 
   final List<_PendingRoutineTask>? pendingTasks;
+  final List<RoutineElderSummary> eldersWithoutTasks;
   final bool hasError;
 
   @override
@@ -400,7 +427,11 @@ class _PendingRoutineAttention extends StatelessWidget {
     }
 
     final visibleTasks = pendingTasks!.take(3).toList();
-    final taskList = pendingTasks!.isEmpty
+    final visibleElders = eldersWithoutTasks
+        .take(3 - visibleTasks.length)
+        .toList();
+    final attentionCount = pendingTasks!.length + eldersWithoutTasks.length;
+    final taskList = attentionCount == 0
         ? Text(
             'Nenhuma tarefa requer atenção neste momento.',
             style: theme.textTheme.bodyMedium?.copyWith(
@@ -416,7 +447,7 @@ class _PendingRoutineAttention extends StatelessWidget {
                     child: Icon(
                       Icons.schedule_rounded,
                       color: colorScheme.primary,
-                      size: sizes.md,
+                      size: sizes.icon(sizes.md),
                     ),
                   ),
                   title: visibleTasks[index].task.title,
@@ -431,7 +462,33 @@ class _PendingRoutineAttention extends StatelessWidget {
                 ),
                 if (index < visibleTasks.length - 1) SizedBox(height: sizes.sm),
               ],
-              if (pendingTasks!.length > visibleTasks.length)
+              for (var index = 0; index < visibleElders.length; index++) ...[
+                InfoCardWidget(
+                  leading: CircleAvatar(
+                    backgroundColor: colorScheme.primary.withValues(alpha: .12),
+                    foregroundImage: visibleElders[index].photoUrl == null
+                        ? null
+                        : profileImageProvider(visibleElders[index].photoUrl),
+                    child: visibleElders[index].photoUrl == null
+                        ? Icon(
+                            Icons.elderly_rounded,
+                            color: colorScheme.primary,
+                            size: sizes.icon(sizes.md),
+                          )
+                        : null,
+                  ),
+                  title: visibleElders[index].name,
+                  subtitle: 'Não possui tarefas na rotina.',
+                  size: InfoCardSize.small,
+                  showGotoButton: true,
+                  onPressed: () => context.go(
+                    RouteNames.routinePath(visibleElders[index].id),
+                  ),
+                ),
+                if (index < visibleElders.length - 1 || visibleTasks.isNotEmpty)
+                  SizedBox(height: sizes.sm),
+              ],
+              if (attentionCount > visibleTasks.length + visibleElders.length)
                 Align(
                   alignment: Alignment.center,
                   child: TextButton(
@@ -445,7 +502,7 @@ class _PendingRoutineAttention extends StatelessWidget {
     return _attentionSection(
       context,
       title: 'Requer sua atenção',
-      count: pendingTasks!.length,
+      count: attentionCount,
       content: taskList,
     );
   }

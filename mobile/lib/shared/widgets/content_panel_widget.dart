@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 
 class ContentPanelWidget extends StatelessWidget {
@@ -11,6 +12,7 @@ class ContentPanelWidget extends StatelessWidget {
     this.topPanelPadding,
     this.margin,
     this.borderRadius,
+    this.fillAvailableHeight = false,
   });
 
   final Widget child;
@@ -19,6 +21,7 @@ class ContentPanelWidget extends StatelessWidget {
   final EdgeInsetsGeometry? topPanelPadding;
   final EdgeInsetsGeometry? margin;
   final BorderRadiusGeometry? borderRadius;
+  final bool fillAvailableHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -52,19 +55,19 @@ class ContentPanelWidget extends StatelessWidget {
       width: double.infinity,
       margin: margin,
       decoration: BoxDecoration(
-        color: theme.scaffoldBackgroundColor,
+        color: AppColors.panelTop,
         borderRadius: resolvedBorderRadius,
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: fillAvailableHeight ? MainAxisSize.max : MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: topPanelPadding ?? EdgeInsets.zero,
-            child: topPanel,
-          ),
-          surfacePanel(),
+          Padding(padding: topPanelPadding ?? EdgeInsets.zero, child: topPanel),
+          if (fillAvailableHeight)
+            Expanded(child: surfacePanel())
+          else
+            surfacePanel(),
         ],
       ),
     );

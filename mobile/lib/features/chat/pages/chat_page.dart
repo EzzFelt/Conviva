@@ -16,7 +16,7 @@ import '../models/conversation_preview.dart';
 import '../providers/conversation_previews_provider.dart';
 import '../widgets/conversation_list_item_widget.dart';
 
-enum _ElderConversationFilter { caregiver, family }
+enum _ConversationFilter { elder, caregiver, family }
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
@@ -27,7 +27,8 @@ class ChatPage extends ConsumerStatefulWidget {
 
 class _ChatPageState extends ConsumerState<ChatPage> {
   final _searchController = TextEditingController();
-  _ElderConversationFilter _elderFilter = _ElderConversationFilter.caregiver;
+  _ConversationFilter _elderFilter = _ConversationFilter.caregiver;
+  _ConversationFilter _caregiverFilter = _ConversationFilter.elder;
 
   @override
   void dispose() {
@@ -43,25 +44,34 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final query = _searchController.text.trim().toLowerCase();
 
     return conversations.where((conversation) {
-      final matchesAccountFilter =
-          session.accountType != AccountType.elder ||
-          switch (_elderFilter) {
-            _ElderConversationFilter.caregiver =>
-              conversation.participantType ==
-                  ConversationParticipantType.caregiver,
-            _ElderConversationFilter.family =>
-              conversation.participantType ==
-                  ConversationParticipantType.family,
-          };
-      final matchesFamilyLink =
+      final matchesAccountFilter = switch (session.accountType) {
+        AccountType.elder => switch (_elderFilter) {
+          _ConversationFilter.caregiver =>
+            conversation.participantType ==
+                ConversationParticipantType.caregiver,
+          _ConversationFilter.family =>
+            conversation.participantType == ConversationParticipantType.family,
+          _ => false,
+        },
+        AccountType.caregiver => switch (_caregiverFilter) {
+          _ConversationFilter.elder =>
+            conversation.participantType == ConversationParticipantType.elder,
+          _ConversationFilter.caregiver =>
+            conversation.participantType ==
+                ConversationParticipantType.caregiver,
+          _ => false,
+        },
+        AccountType.family =>
+          conversation.participantType == ConversationParticipantType.elder,
+      };
+      final requiresFamilyLink =
           (session.accountType == AccountType.elder &&
-                  conversation.participantType ==
-                      ConversationParticipantType.family) ||
-              (session.accountType == AccountType.family &&
-                  conversation.participantType ==
-                      ConversationParticipantType.elder)
-          ? linkedFamilyIds.contains(conversation.participantId)
-          : true;
+              conversation.participantType ==
+                  ConversationParticipantType.family) ||
+          session.accountType == AccountType.family;
+      final matchesFamilyLink =
+          !requiresFamilyLink ||
+          linkedFamilyIds.contains(conversation.participantId);
       final matchesSearch =
           query.isEmpty ||
           conversation.participantName.toLowerCase().contains(query) ||
@@ -73,18 +83,74 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
   Widget _filterButton({
     required String label,
-    required _ElderConversationFilter value,
+    required _ConversationFilter value,
+    required bool selected,
+    required VoidCallback onPressed,
   }) {
-    final selected = _elderFilter == value;
-
     return Expanded(
       child: ButtonWidget(
         label: label,
         size: ButtonSize.small,
         variant: selected ? ButtonVariant.primary : ButtonVariant.outlined,
-        onPressed: () {
-          setState(() => _elderFilter = value);
-        },
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  Widget _filters(BuildContext context, UserSession session) {
+    final sizes = context.appSizes;
+    final filters = switch (session.accountType) {
+      AccountType.elder => [
+        (
+          label: 'Cuidador',
+          value: _ConversationFilter.caregiver,
+          selected: _elderFilter == _ConversationFilter.caregiver,
+        ),
+        (
+          label: 'Familiar',
+          value: _ConversationFilter.family,
+          selected: _elderFilter == _ConversationFilter.family,
+        ),
+      ],
+      AccountType.caregiver => [
+        (
+          label: 'Idosos',
+          value: _ConversationFilter.elder,
+          selected: _caregiverFilter == _ConversationFilter.elder,
+        ),
+        (
+          label: 'Cuidadores',
+          value: _ConversationFilter.caregiver,
+          selected: _caregiverFilter == _ConversationFilter.caregiver,
+        ),
+      ],
+      AccountType.family => const [],
+    };
+
+    if (filters.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: sizes.md),
+      child: Row(
+        children: [
+          for (var index = 0; index < filters.length; index++) ...[
+            if (index > 0) SizedBox(width: sizes.md),
+            _filterButton(
+              label: filters[index].label,
+              value: filters[index].value,
+              selected: filters[index].selected,
+              onPressed: () {
+                setState(() {
+                  if (session.accountType == AccountType.elder) {
+                    _elderFilter = filters[index].value;
+                  } else {
+                    _caregiverFilter = filters[index].value;
+                  }
+                });
+              },
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -143,13 +209,44 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         icon: Icons.error_outline_rounded,
       ),
       data: (conversations) {
-        final knownParticipants = conversations
-            .map((conversation) => conversation.participantId)
-            .toSet();
+        if (contactsState.isLoading && contactsState.asData == null) {
+          return Padding(
+            padding: EdgeInsets.all(sizes.xxl),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (contactsState.hasError) {
+          return _emptyState(
+            context,
+            'Não foi possível carregar os contatos da instituição.',
+            icon: Icons.error_outline_rounded,
+          );
+        }
+
         final contacts =
             contactsState.asData?.value ?? const <InstitutionContact>[];
+        final contactsById = {
+          for (final contact in contacts) contact.uid: contact,
+        };
+        final institutionConversations = [
+          for (final conversation in conversations)
+            if (contactsById[conversation.participantId] case final contact?)
+              ConversationPreview(
+                id: conversation.id,
+                participantId: contact.uid,
+                participantName: contact.name,
+                lastMessage: conversation.lastMessage,
+                participantType: contact.type,
+                photoUrl: contact.photoUrl ?? conversation.photoUrl,
+                lastMessageAt: conversation.lastMessageAt,
+                unreadCount: conversation.unreadCount,
+              ),
+        ];
+        final knownParticipants = institutionConversations
+            .map((conversation) => conversation.participantId)
+            .toSet();
         final allConversations = [
-          ...conversations,
+          ...institutionConversations,
           for (final contact in contacts)
             if (!knownParticipants.contains(contact.uid))
               ConversationPreview(
@@ -186,11 +283,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   );
                 },
               ),
-              if (index < visible.length - 1)
-                Divider(
-                  height: sizes.xs,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+              if (index < visible.length - 1) SizedBox(height: sizes.md),
             ],
           ],
         );
@@ -257,23 +350,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       ),
                       onChanged: (_) => setState(() {}),
                     ),
-                    if (session.accountType == AccountType.elder) ...[
-                      SizedBox(height: sizes.md),
-                      Row(
-                        children: [
-                          _filterButton(
-                            label: 'Cuidador',
-                            value: _ElderConversationFilter.caregiver,
-                          ),
-                          SizedBox(width: sizes.md),
-                          _filterButton(
-                            label: 'Familiar',
-                            value: _ElderConversationFilter.family,
-                          ),
-                        ],
-                      ),
-                    ],
                     SizedBox(height: sizes.md),
+                    _filters(context, session),
                     _conversationList(
                       context,
                       session,

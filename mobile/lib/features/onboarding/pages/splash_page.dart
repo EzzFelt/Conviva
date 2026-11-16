@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/assets_paths.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/services/auth_service.dart';
 import '../../auth/models/user_session.dart';
 import '../../auth/providers/authenticated_user_navigator.dart';
 import '../../auth/providers/current_user_provider.dart';
@@ -53,6 +53,34 @@ class _SplashPageState extends ConsumerState<SplashPage> {
 
     try {
       if (session == null) {
+        final authService = AuthService.instance;
+        final hasPendingRegistration = await authService
+            .hasPendingEmailRegistration();
+        if (!mounted) return;
+
+        if (hasPendingRegistration) {
+          final isEmailVerified = await authService.isCurrentEmailVerified();
+          if (!mounted) return;
+
+          if (isEmailVerified) {
+            await authService.completePendingEmailRegistration();
+            final completedSession = await ref
+                .read(currentUserProvider.notifier)
+                .refresh();
+            if (!mounted) return;
+
+            if (completedSession == null) {
+              throw StateError(
+                'Não foi possível concluir o cadastro verificado.',
+              );
+            }
+            await AuthenticatedUserNavigator.open(context, completedSession);
+          } else {
+            context.go(RouteNames.verifyEmail);
+          }
+          return;
+        }
+
         context.go(RouteNames.onboarding);
         return;
       }

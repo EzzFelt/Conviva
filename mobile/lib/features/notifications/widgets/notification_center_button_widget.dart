@@ -113,7 +113,7 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
               children: [
                 Icon(
                   Icons.notifications_none_rounded,
-                  size: sizes.xxl,
+                  size: sizes.icon(sizes.xxl),
                   color: colorScheme.onSurfaceVariant,
                 ),
                 SizedBox(height: sizes.md),
@@ -207,7 +207,7 @@ class _NotificationTile extends StatelessWidget {
               ),
               if (showAsNew) ...[
                 SizedBox(width: sizes.sm),
-                Icon(Icons.circle, size: sizes.xs, color: colorScheme.primary),
+                Icon(Icons.circle, size: sizes.icon(sizes.xs), color: colorScheme.primary),
               ],
             ],
           ),

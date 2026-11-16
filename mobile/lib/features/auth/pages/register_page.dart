@@ -28,10 +28,7 @@ import '../widgets/auth_header_widget.dart';
 class RegisterPage extends ConsumerStatefulWidget {
   final AuthArguments arguments;
 
-  const RegisterPage({
-    super.key,
-    required this.arguments,
-  });
+  const RegisterPage({super.key, required this.arguments});
 
   @override
   ConsumerState<RegisterPage> createState() => _RegisterPageState();
@@ -73,35 +70,42 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     });
 
     try {
-      final result = await ref.read(currentUserProvider.notifier).register(
-        name: _nameController.text,
-        email: accountType == AccountType.elder
-            ? null
-            : _emailController.text,
-        phone: _phoneController.text,
-        institutionCode: _institutionController.text,
-        password: _passwordController.text,
-        accountType: accountType,
-      );
+      final result = await ref
+          .read(currentUserProvider.notifier)
+          .register(
+            name: _nameController.text,
+            email: accountType == AccountType.elder
+                ? null
+                : _emailController.text,
+            phone: _phoneController.text,
+            institutionCode: _institutionController.text,
+            password: _passwordController.text,
+            accountType: accountType,
+          );
 
       if (!mounted) return;
+
+      if (result.requiresEmailVerification) {
+        context.go(RouteNames.verifyEmail);
+        return;
+      }
+
+      final session = result.session;
+      if (session == null) {
+        throw StateError('A sessão não foi criada após o cadastro.');
+      }
 
       if (result.elderAccessCode != null) {
         await _showElderAccessCode(result.elderAccessCode!);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cadastro realizado com sucesso.'),
-          ),
+          const SnackBar(content: Text('Cadastro realizado com sucesso.')),
         );
       }
 
       if (!mounted) return;
 
-      await AuthenticatedUserNavigator.open(
-        context,
-        result.session,
-      );
+      await AuthenticatedUserNavigator.open(context, session);
     } catch (error) {
       if (!mounted) return;
 
@@ -110,11 +114,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         context: AuthErrorContext.register,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -124,97 +126,90 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     }
   }
 
-    Future<void> _showElderAccessCode(String code) {
-      return showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) {
-          bool copied = false;
-          bool copyFailed = false;
+  Future<void> _showElderAccessCode(String code) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        bool copied = false;
+        bool copyFailed = false;
 
-          return StatefulBuilder(
-            builder: (dialogStateContext, setDialogState) {
-              final theme = Theme.of(dialogStateContext);
-              final colorScheme = theme.colorScheme;
-              final sizes = dialogStateContext.appSizes;
+        return StatefulBuilder(
+          builder: (dialogStateContext, setDialogState) {
+            final theme = Theme.of(dialogStateContext);
+            final colorScheme = theme.colorScheme;
+            final sizes = dialogStateContext.appSizes;
 
-              return AlertDialog(
-                title: const Text('Código de acesso do idoso'),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Guarde este código. Ele será usado para entrar na conta '
-                      'e para o familiar realizar o vínculo.',
-                    ),
-                    SizedBox(height: sizes.md),
-                    SelectableText(
-                      code,
-                      style: theme.textTheme.headlineSmall,
+            return AlertDialog(
+              title: const Text('Código de acesso do idoso'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Guarde este código. Ele será usado para entrar na conta '
+                    'e para o familiar realizar o vínculo.',
+                  ),
+                  SizedBox(height: sizes.md),
+                  SelectableText(
+                    code,
+                    style: theme.textTheme.headlineSmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: sizes.md),
+                  if (copied)
+                    Text(
+                      'Código copiado com sucesso!',
                       textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: sizes.md),
-                    if (copied)
-                      Text(
-                        'Código copiado com sucesso!',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.primary,
-                        ),
-                      )
-                    else if (copyFailed)
-                      Text(
-                        'Não foi possível copiar. Selecione o código '
-                        'manualmente.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.error,
-                        ),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.primary,
                       ),
-                  ],
-                ),
-                actions: [
-                  TextButton.icon(
-                    onPressed: () async {
-                      try {
-                        await Clipboard.setData(
-                          ClipboardData(text: code),
-                        );
-
-                        if (!dialogStateContext.mounted) return;
-
-                        setDialogState(() {
-                          copied = true;
-                          copyFailed = false;
-                        });
-                      } catch (_) {
-                        if (!dialogStateContext.mounted) return;
-
-                        setDialogState(() {
-                          copied = false;
-                          copyFailed = true;
-                        });
-                      }
-                    },
-                    icon: Icon(
-                      copied ? Icons.check : Icons.copy,
+                    )
+                  else if (copyFailed)
+                    Text(
+                      'Não foi possível copiar. Selecione o código '
+                      'manualmente.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.error,
+                      ),
                     ),
-                    label: Text(
-                      copied ? 'Copiado!' : 'Copiar código',
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Entendi'),
-                  ),
                 ],
-              );
-            },
-          );
-        },
-      );
-    }
+              ),
+              actions: [
+                TextButton.icon(
+                  onPressed: () async {
+                    try {
+                      await Clipboard.setData(ClipboardData(text: code));
 
+                      if (!dialogStateContext.mounted) return;
+
+                      setDialogState(() {
+                        copied = true;
+                        copyFailed = false;
+                      });
+                    } catch (_) {
+                      if (!dialogStateContext.mounted) return;
+
+                      setDialogState(() {
+                        copied = false;
+                        copyFailed = true;
+                      });
+                    }
+                  },
+                  icon: Icon(copied ? Icons.check : Icons.copy),
+                  label: Text(copied ? 'Copiado!' : 'Copiar código'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Entendi'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
   String? _validateRequired(String? value, String message) {
     if (value == null || value.trim().isEmpty) {
@@ -302,9 +297,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
                   SizedBox(height: sizes.xl),
 
-                  const AuthHeaderWidget(
-                    title: 'Crie sua\nconta!',
-                  ),
+                  const AuthHeaderWidget(title: 'Crie sua\nconta!'),
 
                   SizedBox(height: sizes.xl),
 
@@ -314,10 +307,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     enabled: !_isLoading,
                     keyboardType: TextInputType.name,
                     textInputAction: TextInputAction.next,
-                    validator: (value) => _validateRequired(
-                      value,
-                      'Informe o nome completo',
-                    ),
+                    validator: (value) =>
+                        _validateRequired(value, 'Informe o nome completo'),
                     autofillHints: const [AutofillHints.name],
                   ),
 
@@ -342,14 +333,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     hintText: 'Número de telefone',
                     enabled: !_isLoading,
                     keyboardType: TextInputType.phone,
-                    inputFormatters: const [
-                      BrazilianPhoneFormatter(),
-                    ],
+                    inputFormatters: const [BrazilianPhoneFormatter()],
                     textInputAction: TextInputAction.next,
                     validator: _validatePhone,
-                    autofillHints: const [
-                      AutofillHints.telephoneNumber,
-                    ],
+                    autofillHints: const [AutofillHints.telephoneNumber],
                   ),
 
                   SizedBox(height: sizes.md),
@@ -375,9 +362,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     textInputAction: TextInputAction.done,
                     validator: _validatePassword,
                     onFieldSubmitted: (_) => _register(),
-                    autofillHints: const [
-                      AutofillHints.newPassword,
-                    ],
+                    autofillHints: const [AutofillHints.newPassword],
                   ),
 
                   SizedBox(height: sizes.xl),

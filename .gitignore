@@ -84,6 +84,9 @@ mobile/gemini_env.json
 # IDE
 mobile/.idea/
 mobile/.vscode/
+!mobile/.vscode/
+mobile/.vscode/*
+!mobile/.vscode/launch.json
 mobile/*.iml
 
 # ====================

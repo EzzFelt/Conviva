@@ -115,7 +115,7 @@ class _RoutineElderSelectionPage extends ConsumerWidget {
           child: Row(
             children: [
               CircleAvatar(
-                radius: sizes.lg,
+                radius: sizes.xl,
                 backgroundColor: colorScheme.primary.withValues(alpha: .12),
                 foregroundImage: photoUrl == null || photoUrl.isEmpty
                     ? null
@@ -133,7 +133,7 @@ class _RoutineElderSelectionPage extends ConsumerWidget {
                       elder.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleSmall?.copyWith(
+                      style: theme.textTheme.titleMedium?.copyWith(
                         color: colorScheme.onSurface,
                         fontWeight: FontWeight.w700,
                       ),
@@ -218,39 +218,33 @@ class _RoutineElderSelectionPage extends ConsumerWidget {
       decoration: _gradientDecoration(context),
       child: SafeArea(
         bottom: false,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: EdgeInsets.only(bottom: sizes.xxl * 3),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    PageHeaderWidget(
-                      title: actor.accountType == AccountType.caregiver
-                          ? 'Residentes'
-                          : 'Rotinas',
-                      onBackPressed: () => _goHome(context),
-                    ),
-                    ContentPanelWidget(
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(sizes.radiusLg),
-                        topRight: Radius.circular(sizes.radiusLg),
-                      ),
-                      padding: EdgeInsets.fromLTRB(
-                        sizes.lg,
-                        sizes.lg,
-                        sizes.lg,
-                        sizes.xxl * 2,
-                      ),
-                      child: _elderList(context, eldersState),
-                    ),
-                  ],
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: PageHeaderWidget(
+                title: actor.accountType == AccountType.caregiver
+                    ? 'Residentes'
+                    : 'Rotinas',
+                onBackPressed: () => _goHome(context),
+              ),
+            ),
+            SliverFillRemaining(
+              hasScrollBody: true,
+              child: SizedBox.expand(
+                child: ContentPanelWidget(
+                  fillAvailableHeight: true,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(sizes.radiusLg),
+                    topRight: Radius.circular(sizes.radiusLg),
+                  ),
+                  padding: EdgeInsets.fromLTRB(sizes.lg, sizes.lg, sizes.lg, 0),
+                  child: SingleChildScrollView(
+                    child: _elderList(context, eldersState),
+                  ),
                 ),
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
     );
@@ -1188,73 +1182,67 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
 
     final sizes = context.appSizes;
 
-    if (_viewMode == RoutineViewMode.allDays && !_showHistory) {
-      final theme = Theme.of(context);
-
-      return DecoratedBox(
-        decoration: _gradientDecoration(context),
-        child: SafeArea(
-          bottom: false,
-          child: CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(
-                child: PageHeaderWidget(
-                  title: 'Rotina',
-                  onBackPressed: _goBack,
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(sizes.md),
-                  decoration: BoxDecoration(
-                    color: theme.scaffoldBackgroundColor,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(sizes.radiusLg),
-                      topRight: Radius.circular(sizes.radiusLg),
-                    ),
-                  ),
-                  child: _viewControls(context, permissionsState, elderState),
-                ),
-              ),
-              ..._allDaysSlivers(context, tasksState, completionsState),
-              SliverToBoxAdapter(child: SizedBox(height: sizes.xxl * 3)),
-            ],
+    final theme = Theme.of(context);
+    final isAllDaysView = _viewMode == RoutineViewMode.allDays && !_showHistory;
+    final slivers = <Widget>[
+      SliverToBoxAdapter(
+        child: PageHeaderWidget(title: 'Rotina', onBackPressed: _goBack),
+      ),
+      SliverToBoxAdapter(
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(sizes.md),
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(sizes.radiusLg),
+              topRight: Radius.circular(sizes.radiusLg),
+            ),
           ),
-        ),
-      );
-    }
-
-    return DecoratedBox(
-      decoration: _gradientDecoration(context),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          padding: EdgeInsets.only(bottom: sizes.xxl * 3),
-          child: Column(
-            children: [
-              PageHeaderWidget(title: 'Rotina', onBackPressed: _goBack),
-              ContentPanelWidget(
-                borderRadius: BorderRadius.circular(sizes.radiusLg),
-                topPanelPadding: EdgeInsets.all(sizes.md),
-                topPanel: _viewControls(context, permissionsState, elderState),
-                padding: EdgeInsets.fromLTRB(
-                  sizes.md,
-                  sizes.lg,
-                  sizes.md,
-                  sizes.xl,
-                ),
-                child: _routineContent(
-                  context,
-                  tasksState,
-                  permissionsState,
-                  completionsState,
-                ),
-              ),
-            ],
-          ),
+          child: _viewControls(context, permissionsState, elderState),
         ),
       ),
+      if (isAllDaysView) ...[
+        ..._allDaysSlivers(context, tasksState, completionsState),
+        SliverToBoxAdapter(child: SizedBox(height: sizes.xxl * 3)),
+      ] else ...[
+        SliverToBoxAdapter(
+          child: ColoredBox(
+            key: const ValueKey('routine-content-background'),
+            color: theme.scaffoldBackgroundColor,
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.fromLTRB(
+                sizes.md,
+                sizes.lg,
+                sizes.md,
+                sizes.xl + sizes.xxl * 3,
+              ),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(sizes.radiusLg),
+                  topRight: Radius.circular(sizes.radiusLg),
+                ),
+              ),
+              child: _routineContent(
+                context,
+                tasksState,
+                permissionsState,
+                completionsState,
+              ),
+            ),
+          ),
+        ),
+      ],
+      SliverFillRemaining(
+        hasScrollBody: false,
+        child: ColoredBox(color: theme.colorScheme.surface),
+      ),
+    ];
+    return DecoratedBox(
+      decoration: _gradientDecoration(context),
+      child: SafeArea(bottom: false, child: CustomScrollView(slivers: slivers)),
     );
   }
 }
@@ -1295,7 +1283,7 @@ class _RoutineInlineMessage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: sizes.xxl, color: colorScheme.primary),
+          Icon(icon, size: sizes.icon(sizes.xxl), color: colorScheme.primary),
           SizedBox(height: sizes.md),
           Text(
             message,

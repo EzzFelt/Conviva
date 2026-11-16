@@ -11,6 +11,8 @@ class UserSession {
     this.email,
     this.elderLinkCode,
     this.photoUrl,
+    this.jobTitle = '',
+    this.workShift = '',
   });
 
   final String uid;
@@ -22,6 +24,8 @@ class UserSession {
   final String? email;
   final String? elderLinkCode;
   final String? photoUrl;
+  final String jobTitle;
+  final String workShift;
 
   factory UserSession.fromMap({
     required String uid,
@@ -44,6 +48,8 @@ class UserSession {
       email: _optionalString(data['email']),
       elderLinkCode: _optionalString(data['elderLinkCode']),
       photoUrl: _optionalString(data['photoUrl']),
+      jobTitle: data['jobTitle']?.toString().trim() ?? '',
+      workShift: data['workShift']?.toString().trim() ?? '',
     );
   }
 
@@ -57,6 +63,8 @@ class UserSession {
     String? phone,
     String? email,
     String? photoUrl,
+    String? jobTitle,
+    String? workShift,
     bool clearPhotoUrl = false,
   }) {
     return UserSession(
@@ -69,6 +77,8 @@ class UserSession {
       email: email ?? this.email,
       elderLinkCode: elderLinkCode,
       photoUrl: clearPhotoUrl ? null : (photoUrl ?? this.photoUrl),
+      jobTitle: jobTitle ?? this.jobTitle,
+      workShift: workShift ?? this.workShift,
     );
   }
 
@@ -87,6 +97,10 @@ class UserSession {
       if (email != null) 'email': email,
       if (elderLinkCode != null) 'elderLinkCode': elderLinkCode,
       if (photoUrl != null) 'photoUrl': photoUrl,
+      if (accountType == AccountType.caregiver && jobTitle.isNotEmpty)
+        'jobTitle': jobTitle,
+      if (accountType == AccountType.caregiver && workShift.isNotEmpty)
+        'workShift': workShift,
     };
   }
 }

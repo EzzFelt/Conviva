@@ -80,18 +80,20 @@ class MainNavigationShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(currentUserProvider);
+    final isConversation = location.startsWith('${RouteNames.chat}/');
 
     return Scaffold(
-      extendBody: true,
+      extendBody: !isConversation,
+      backgroundColor: isConversation
+          ? Theme.of(context).colorScheme.surface
+          : null,
       body: child,
-      bottomNavigationBar: location.startsWith('${RouteNames.chat}/')
-          ? null
-          : MainNavigationBar(
-              currentIndex: _currentIndex,
-              onDestinationSelected: (index) {
-                _selectDestination(context, ref, index);
-              },
-            ),
+      bottomNavigationBar: MainNavigationBar(
+        currentIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          _selectDestination(context, ref, index);
+        },
+      ),
     );
   }
 }

@@ -31,6 +31,7 @@ class TextFieldWidget extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.textCapitalization = TextCapitalization.none,
+    this.obscureText = false,
   });
 
   final TextEditingController controller;
@@ -53,6 +54,7 @@ class TextFieldWidget extends StatelessWidget {
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final TextCapitalization textCapitalization;
+  final bool obscureText;
   
 
   @override
@@ -77,6 +79,7 @@ class TextFieldWidget extends StatelessWidget {
 
     return TextFormField(
       controller: controller,
+      obscureText: obscureText,
       focusNode: focusNode,
       keyboardType: keyboardType,
       textInputAction: textInputAction,

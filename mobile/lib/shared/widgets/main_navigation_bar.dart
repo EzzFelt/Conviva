@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
 
 class MainNavigationItem {
@@ -50,11 +51,10 @@ class MainNavigationBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
     final borderRadius = BorderRadius.only(
-      topLeft: Radius.circular(sizes.radiusLg),
-      topRight: Radius.circular(sizes.radiusLg),
+      topLeft: Radius.circular(sizes.radiusLg + sizes.sm * .75),
+      topRight: Radius.circular(sizes.radiusLg + sizes.sm * .75),
     );
 
     return Padding(
@@ -62,10 +62,10 @@ class MainNavigationBar extends StatelessWidget {
         top: sizes.lg,
       ),
       child: Material(
-        color: theme.scaffoldBackgroundColor,
+        color: AppColors.navigationBackground,
         shape: RoundedRectangleBorder(
           borderRadius: borderRadius,
-          side: BorderSide(color: colorScheme.outline),
+          side: const BorderSide(color: AppColors.navigationBorder),
         ),
         clipBehavior: Clip.antiAlias,
         child: SafeArea(
@@ -79,9 +79,10 @@ class MainNavigationBar extends StatelessWidget {
               children: List.generate(items.length, (index) {
                 final item = items[index];
                 final isSelected = index == currentIndex;
+                // Figma: item ativo em amarelo, demais em cinza.
                 final color = isSelected
-                    ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant.withValues(alpha: .60);
+                    ? context.appGradientColors.bottom
+                    : AppColors.navigationInactive;
 
                 return Expanded(
                   child: Semantics(
@@ -111,6 +112,9 @@ class MainNavigationBar extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: color,
+                                fontFamily: 'BeVietnamPro',
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],

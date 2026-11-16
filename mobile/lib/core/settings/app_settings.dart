@@ -5,6 +5,10 @@ import '../constants/app_colors.dart';
 
 @immutable
 class AppSettings {
+  /// Intensidade padrão (70%): nela as cores aparecem exatamente como no
+  /// Figma. Acima disso ficam mais vivas; abaixo, mais suaves.
+  static const defaultColorIntensity = .7;
+
   const AppSettings({
     this.primaryColor = AppColors.primary,
     this.gradientTop = AppColors.gradientTop,
@@ -18,7 +22,7 @@ class AppSettings {
     this.volume = .7,
     this.messageNotifications = true,
     this.reminderNotifications = true,
-    this.colorIntensity = .7,
+    this.colorIntensity = defaultColorIntensity,
   });
 
   final Color primaryColor;
@@ -62,9 +66,8 @@ class AppSettings {
     const defaults = AppSettings();
 
     return AppSettings(
-      primaryColor: _readColor(
-        map['primaryColor'],
-        defaults.primaryColor,
+      primaryColor: _migratePrimary(
+        _readColor(map['primaryColor'], defaults.primaryColor),
       ),
       gradientTop: _readColor(
         map['gradientTop'],
@@ -129,6 +132,13 @@ class AppSettings {
     );
   }
 
+  /// Quem salvou as configurações com o laranja antigo passa a usar o novo.
+  static Color _migratePrimary(Color color) {
+    return color.toARGB32() == AppColors.legacyPrimary.toARGB32()
+        ? AppColors.primary
+        : color;
+  }
+
   static Color _readColor(Object? value, Color fallback) {
     if (value is! num) return fallback;
 
@@ -164,10 +174,10 @@ class AppSettings {
   Color applyIntensity(Color color) {
     final hsl = HSLColor.fromColor(color);
 
+    final factor = colorIntensity / defaultColorIntensity;
+
     return hsl
-        .withSaturation(
-          (hsl.saturation * colorIntensity).clamp(0, 1).toDouble(),
-        )
+        .withSaturation((hsl.saturation * factor).clamp(0, 1).toDouble())
         .toColor();
   }
 

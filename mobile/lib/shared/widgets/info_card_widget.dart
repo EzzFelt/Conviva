@@ -3,11 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_sizes.dart';
 import 'goto_button_widget.dart';
 
-enum InfoCardSize {
-  small,
-  medium,
-  large,
-}
+enum InfoCardSize { small, medium, large }
 
 class InfoCardWidget extends StatelessWidget {
   const InfoCardWidget({
@@ -21,14 +17,14 @@ class InfoCardWidget extends StatelessWidget {
     this.showGotoButton = false,
     this.onPressed,
     this.borderRadius,
-  })  : assert(
-          content != null || (title != null && subtitle != null),
-          'Informe content ou title e subtitle.',
-        ),
-        assert(
-          !showGotoButton || trailing == null,
-          'Use showGotoButton ou trailing, mas não os dois.',
-        );
+  }) : assert(
+         content != null || (title != null && subtitle != null),
+         'Informe content ou title e subtitle.',
+       ),
+       assert(
+         !showGotoButton || trailing == null,
+         'Use showGotoButton ou trailing, mas não os dois.',
+       );
 
   final Widget? leading;
   final String? title;
@@ -42,7 +38,7 @@ class InfoCardWidget extends StatelessWidget {
 
   double _leadingSize(AppSizesTheme sizes) {
     return switch (size) {
-      InfoCardSize.small => sizes.buttonSmall * .75,
+      InfoCardSize.small => sizes.buttonSmall,
       InfoCardSize.medium => sizes.buttonSmall,
       InfoCardSize.large => sizes.buttonMedium,
     };
@@ -51,13 +47,13 @@ class InfoCardWidget extends StatelessWidget {
   EdgeInsets _padding(AppSizesTheme sizes) {
     return switch (size) {
       InfoCardSize.small => EdgeInsets.symmetric(
-          horizontal: sizes.sm,
-          vertical: sizes.sm * 1.5,
-        ),
+        horizontal: sizes.md,
+        vertical: sizes.sm * 1.5,
+      ),
       InfoCardSize.medium => EdgeInsets.symmetric(
-          horizontal: sizes.md,
-          vertical: sizes.md * 1.5,
-        ),
+        horizontal: sizes.md,
+        vertical: sizes.md * 1.5,
+      ),
       InfoCardSize.large => EdgeInsets.all(sizes.lg),
     };
   }
@@ -76,8 +72,8 @@ class InfoCardWidget extends StatelessWidget {
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
     final leadingSize = _leadingSize(sizes);
-    final resolvedBorderRadius = borderRadius ??
-        BorderRadius.circular(sizes.radiusFull);
+    final resolvedBorderRadius =
+        borderRadius ?? BorderRadius.circular(sizes.radiusFull);
 
     return Material(
       color: colorScheme.surface,
@@ -93,14 +89,12 @@ class InfoCardWidget extends StatelessWidget {
           child: Row(
             children: [
               if (leading != null) ...[
-                SizedBox.square(
-                  dimension: leadingSize,
-                  child: leading,
-                ),
+                SizedBox.square(dimension: leadingSize, child: leading),
                 SizedBox(width: sizes.sm),
               ],
               Expanded(
-                child: content ??
+                child:
+                    content ??
                     Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -122,16 +116,10 @@ class InfoCardWidget extends StatelessWidget {
                       ],
                     ),
               ),
-              if (trailing != null) ...[
-                SizedBox(width: sizes.sm),
-                trailing!,
-              ],
+              if (trailing != null) ...[SizedBox(width: sizes.sm), trailing!],
               if (showGotoButton) ...[
                 SizedBox(width: sizes.sm),
-                GotoButtonWidget(
-                  size: _gotoButtonSize(),
-                  onPressed: onPressed,
-                ),
+                GotoButtonWidget(size: _gotoButtonSize(), onPressed: onPressed),
               ],
             ],
           ),

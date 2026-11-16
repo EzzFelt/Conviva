@@ -308,7 +308,7 @@ class _RoutineTaskFormModalState extends State<RoutineTaskFormModal> {
               SelectionOptionWidget(
                 label: weekday.label,
                 selected: _selectedWeekdays.contains(weekday.value),
-                size: sizes.xl,
+                size: sizes.icon(sizes.xl),
                 semanticLabel: 'Dia ${weekday.label}',
                 onSelected: (selected) {
                   setState(() {

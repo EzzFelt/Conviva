@@ -69,6 +69,20 @@
       ]
     },
     {
+      "collectionGroup": "familyLinks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "elderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "tasks",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

@@ -11,8 +11,8 @@ class AppTextStyles {
   );
 
   static const sectionTitle = TextStyle(
-    fontFamily: 'Inter',
-    fontSize: 17,
+    fontFamily: 'BeVietnamPro',
+    fontSize: 20,
     fontWeight: FontWeight.w600,
     height: 1.30,
   );
@@ -70,8 +70,18 @@ class AppTextStyles {
         color: textColor,
         fontWeight: titleWeight,
       ),
+      headlineMedium: pageTitle.copyWith(
+        color: textColor,
+        fontSize: 24,
+        fontWeight: titleWeight,
+      ),
       titleMedium: bodyEmphasis.copyWith(
         color: textColor,
+        fontWeight: titleWeight,
+      ),
+      titleSmall: bodyEmphasis.copyWith(
+        color: textColor,
+        fontSize: 14,
         fontWeight: titleWeight,
       ),
       bodyLarge: body.copyWith(
@@ -87,6 +97,15 @@ class AppTextStyles {
         fontWeight: bodyWeight,
       ),
       labelLarge: button.copyWith(color: textColor),
+      labelMedium: caption.copyWith(
+        color: textColor,
+        fontWeight: titleWeight,
+      ),
+      labelSmall: caption.copyWith(
+        color: textColor,
+        fontSize: 12,
+        fontWeight: bodyWeight,
+      ),
     );
   }
 }

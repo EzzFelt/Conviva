@@ -13,6 +13,18 @@ class AuthenticatedUserNavigator {
     BuildContext context,
     UserSession session,
   ) async {
+    // Familiar e cuidador só entram depois de confirmar o e-mail.
+    if (session.accountType != AccountType.elder) {
+      final verified = await AuthService.instance.isCurrentEmailVerified();
+
+      if (!context.mounted) return;
+
+      if (!verified) {
+        context.go(RouteNames.verifyEmail);
+        return;
+      }
+    }
+
     switch (session.accountType) {
       case AccountType.elder:
         context.go(RouteNames.elderHome);

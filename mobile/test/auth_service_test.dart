@@ -29,11 +29,20 @@ void main() {
       expect(result, 'ELD00ABC123');
     });
 
-    test('converts a valid elder code to its internal authentication email', () {
+    test('uses the support mailbox alias for new elder authentication', () {
       final result = AuthRegister.elderAuthEmail('eld-ab12');
 
-      expect(result, 'eldab12@elder.conviva.app');
+      expect(result, 'suporte.convia+eldab12@gmail.com');
     });
+
+    test(
+      'keeps the legacy internal address available for existing accounts',
+      () {
+        final result = AuthRegister.legacyElderAuthEmail('eld-ab12');
+
+        expect(result, 'eldab12@elder.conviva.app');
+      },
+    );
 
     test('throws when the elder code is invalid', () {
       expect(

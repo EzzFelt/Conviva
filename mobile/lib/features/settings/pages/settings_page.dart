@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/settings/app_settings_provider.dart';
 import '../../../shared/widgets/button_widget.dart';
+import '../../../shared/widgets/confirm_modal.dart';
 import '../../../shared/widgets/content_panel_widget.dart';
 import '../../../shared/widgets/page_header_widget.dart';
 import '../../auth/models/user_session.dart';
@@ -19,6 +20,25 @@ class SettingsPage extends ConsumerWidget {
 
   Future<void> _goHome(BuildContext context, UserSession session) async {
     await AuthenticatedUserNavigator.open(context, session);
+  }
+
+  Future<void> _restoreDefaults(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showConfirmModal(
+      context,
+      title: 'Restaurar padrão?',
+      message:
+          'Fonte, ícones, botões, cores e notificações voltam para o padrão '
+          'do app.',
+      confirmLabel: 'Restaurar',
+    );
+
+    if (!confirmed || !context.mounted) return;
+
+    ref.read(appSettingsProvider.notifier).reset();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Configurações restauradas ao padrão.')),
+    );
   }
 
   Widget _buildContent(
@@ -47,15 +67,16 @@ class SettingsPage extends ConsumerWidget {
       ),
       child: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              PageHeaderWidget(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: PageHeaderWidget(
                 title: 'Configurações',
                 onBackPressed: () => _goHome(context, session),
               ),
-              ContentPanelWidget(
+            ),
+            SliverToBoxAdapter(
+              child: ContentPanelWidget(
                 borderRadius: BorderRadius.only(
                   topLeft: ovalRadius,
                   topRight: ovalRadius,
@@ -241,12 +262,18 @@ class SettingsPage extends ConsumerWidget {
                           );
                         },
                       ),
+                      SizedBox(height: sizes.xxl),
+                      ButtonWidget(
+                        label: 'Restaurar padrão',
+                        variant: ButtonVariant.outlined,
+                        onPressed: () => _restoreDefaults(context, ref),
+                      ),
                     ],
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -103,7 +103,9 @@ class _AppState extends ConsumerState<App> {
 
         return MediaQuery(
           data: mediaQuery.copyWith(
-            textScaler: TextScaler.linear(systemFontScale * settings.fontScale),
+            textScaler: TextScaler.linear(
+              (systemFontScale * settings.fontScale).clamp(0.8, 2.0),
+            ),
           ),
           child: child,
         );

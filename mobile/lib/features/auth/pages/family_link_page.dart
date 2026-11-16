@@ -20,6 +20,65 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
   final _formKey = GlobalKey<FormState>();
   bool _receiveNotifications = true;
   bool _isSubmitting = false;
+  bool _awaitingApproval = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPendingRequest();
+  }
+
+  // Quem já pediu o vínculo e ainda não foi aceito vê a tela de espera.
+  Future<void> _loadPendingRequest() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final hasPending = await AuthService.instance.hasPendingLinkForFamily(
+        uid,
+      );
+      if (mounted && hasPending) setState(() => _awaitingApproval = true);
+    } catch (_) {
+      // Sem a checagem, mostra o formulário normal.
+    }
+  }
+
+  Future<void> _checkAccepted() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      final elder = await AuthService.instance.getActiveLinkedElderForFamily(
+        uid,
+      );
+      if (!mounted) return;
+
+      if (elder == null) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Ainda aguardando o idoso aceitar.'),
+          ),
+        );
+        return;
+      }
+
+      context.go(
+        RouteNames.familyHome,
+        extra: {
+          'id': elder['id']?.toString(),
+          'name': elder['name']?.toString() ?? 'Idoso',
+        },
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível verificar agora. Tente novamente.'),
+        ),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -50,7 +109,7 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
         throw Exception('Usuário familiar não autenticado.');
       }
 
-      final elderData = await AuthService.instance.linkFamilyMemberToElder(
+      await AuthService.instance.linkFamilyMemberToElder(
         familyUid: currentUser.uid,
         elderLinkCode: elderCode,
         receiveNotifications: _receiveNotifications,
@@ -59,16 +118,12 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Idoso vinculado com sucesso!')),
+        const SnackBar(
+          content: Text('Solicitação enviada! Aguarde o idoso aceitar.'),
+        ),
       );
 
-      context.go(
-        RouteNames.familyHome,
-        extra: {
-          'id': elderData['id']?.toString(),
-          'name': elderData['name']?.toString() ?? 'Idoso',
-        },
-      );
+      setState(() => _awaitingApproval = true);
     } catch (error) {
       if (!mounted) return;
       final message = error is Exception
@@ -86,6 +141,59 @@ class _FamilyLinkPageState extends State<FamilyLinkPage> {
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
     final familyName = FirebaseAuth.instance.currentUser?.displayName?.trim();
+
+    if (_awaitingApproval) {
+      return Scaffold(
+        backgroundColor: context.appGradientColors.bottom,
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(sizes.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Icon(
+                    Icons.hourglass_top_rounded,
+                    size: sizes.icon(sizes.xxl * 2),
+                    color: colorScheme.onPrimary,
+                  ),
+                  SizedBox(height: sizes.lg),
+                  Text(
+                    'Solicitação enviada!',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      color: colorScheme.onPrimary,
+                    ),
+                  ),
+                  SizedBox(height: sizes.md),
+                  Text(
+                    'Assim que o idoso aceitar o vínculo no perfil dele, você '
+                    'poderá acompanhar a rotina e conversar.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      color: colorScheme.onPrimary,
+                    ),
+                  ),
+                  SizedBox(height: sizes.xl),
+                  ButtonWidget(
+                    label: 'Verificar se já foi aceito',
+                    variant: ButtonVariant.primary,
+                    onPressed: _checkAccepted,
+                  ),
+                  SizedBox(height: sizes.md),
+                  ButtonWidget(
+                    label: 'Vincular outro idoso',
+                    variant: ButtonVariant.outlined,
+                    onPressed: () => setState(() => _awaitingApproval = false),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: context.appGradientColors.bottom,

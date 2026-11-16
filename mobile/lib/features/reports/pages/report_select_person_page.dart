@@ -30,6 +30,7 @@ class _ReportSelectPersonPageState
   final _instituteController = TextEditingController();
 
   late final ReportDraft _draft;
+  ReportTarget? _selectedTarget;
 
   @override
   void initState() {
@@ -48,7 +49,12 @@ class _ReportSelectPersonPageState
     super.dispose();
   }
 
-  void _onTextChanged() => setState(() {});
+  void _onTextChanged() {
+    if (_nameController.text.trim().isNotEmpty) {
+      _selectedTarget = null;
+    }
+    setState(() {});
+  }
 
   bool get _isInstitution => _draft.offender == OffenderKind.institution;
 
@@ -119,6 +125,7 @@ class _ReportSelectPersonPageState
                           padding: EdgeInsets.only(bottom: sizes.sm),
                           child: _TargetTile(
                             target: target,
+                            selected: _selectedTarget?.id == target.id,
                             onSelect: () => _confirm(target),
                           ),
                         ),
@@ -157,15 +164,17 @@ class _ReportSelectPersonPageState
       ),
       bottomButton: ButtonWidget(
         label: 'Continuar',
-        onPressed: _nameController.text.trim().isEmpty
+        onPressed:
+            _selectedTarget == null && _nameController.text.trim().isEmpty
             ? null
             : () => _confirm(
-                ReportTarget(
-                  id: '',
-                  name: _nameController.text.trim(),
-                  phone: _phoneController.text.trim(),
-                  institute: _instituteController.text.trim(),
-                ),
+                _selectedTarget ??
+                    ReportTarget(
+                      id: '',
+                      name: _nameController.text.trim(),
+                      phone: _phoneController.text.trim(),
+                      institute: _instituteController.text.trim(),
+                    ),
               ),
       ),
     );
@@ -174,12 +183,14 @@ class _ReportSelectPersonPageState
   Future<void> _confirm(ReportTarget target) async {
     final confirmed = await showAppModal<bool>(
       context: context,
-      size: AppModalSize.small,
-      title: 'Tem certeza que deseja\ndenunciar esta pessoa?',
+      size: AppModalSize.medium,
+      showCloseButton: false,
       child: _ConfirmContent(
         target: target,
-        onConfirm: (dialogContext) => Navigator.of(dialogContext).pop(true),
-        onCancel: (dialogContext) => Navigator.of(dialogContext).pop(false),
+        title: _isInstitution
+            ? 'Tem certeza que deseja\ndenunciar esta instituição?'
+            : 'Tem certeza que deseja\ndenunciar esta pessoa?',
+        isInstitution: _isInstitution,
       ),
     );
 
@@ -217,9 +228,14 @@ class _ReportSelectPersonPageState
 }
 
 class _TargetTile extends StatelessWidget {
-  const _TargetTile({required this.target, required this.onSelect});
+  const _TargetTile({
+    required this.target,
+    required this.selected,
+    required this.onSelect,
+  });
 
   final ReportTarget target;
+  final bool selected;
   final VoidCallback onSelect;
 
   @override
@@ -250,7 +266,7 @@ class _TargetTile extends StatelessWidget {
             TextButton(
               onPressed: onSelect,
               child: Text(
-                'Selecionar',
+                selected ? 'Selecionado' : 'Selecionar',
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: colorScheme.primary,
                 ),
@@ -264,10 +280,15 @@ class _TargetTile extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.photoUrl, required this.radius});
+  const _Avatar({
+    required this.photoUrl,
+    required this.radius,
+    this.fallbackIcon = Icons.person_rounded,
+  });
 
   final String? photoUrl;
   final double radius;
+  final IconData fallbackIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -275,8 +296,9 @@ class _Avatar extends StatelessWidget {
 
     return CircleAvatar(
       radius: radius,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
       backgroundImage: image,
-      child: image == null ? const Icon(Icons.person) : null,
+      child: image == null ? Icon(fallbackIcon) : null,
     );
   }
 }
@@ -284,44 +306,101 @@ class _Avatar extends StatelessWidget {
 class _ConfirmContent extends StatelessWidget {
   const _ConfirmContent({
     required this.target,
-    required this.onConfirm,
-    required this.onCancel,
+    required this.title,
+    required this.isInstitution,
   });
 
   final ReportTarget target;
-  final void Function(BuildContext) onConfirm;
-  final void Function(BuildContext) onCancel;
+  final String title;
+  final bool isInstitution;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconButton(
+            tooltip: 'Fechar',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            onPressed: () => Navigator.of(context).pop(false),
+            icon: Icon(Icons.close_rounded, size: sizes.icon(sizes.xl)),
+          ),
+        ),
+        SizedBox(height: sizes.xs),
         Center(
-          child: _Avatar(photoUrl: target.photoUrl, radius: sizes.xl * 1.3),
+          child: FractionallySizedBox(
+            widthFactor: .9,
+            child: Text(
+              title,
+              textAlign: TextAlign.left,
+              style: theme.textTheme.titleLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        SizedBox(height: sizes.lg),
+        Center(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: colorScheme.surfaceContainerLow,
+              boxShadow: [
+                BoxShadow(
+                  color: colorScheme.shadow.withValues(alpha: .14),
+                  blurRadius: sizes.sm,
+                  offset: Offset(0, sizes.xs / 2),
+                ),
+              ],
+            ),
+            child: Padding(
+              padding: EdgeInsets.all(sizes.xs),
+              child: _Avatar(
+                photoUrl: target.photoUrl,
+                radius: sizes.xxl - sizes.xs,
+                fallbackIcon: isInstitution
+                    ? Icons.apartment_rounded
+                    : Icons.person_rounded,
+              ),
+            ),
+          ),
         ),
         SizedBox(height: sizes.md),
         Text(
           target.name,
           textAlign: TextAlign.center,
-          style: theme.textTheme.titleMedium,
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
         ),
-        SizedBox(height: sizes.lg),
-        ButtonWidget(
-          label: 'Confirmar',
-          size: ButtonSize.small,
-          variant: ButtonVariant.secondary,
-          onPressed: () => onConfirm(context),
+        SizedBox(height: sizes.xxl * 1.5),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: sizes.sm),
+          child: ButtonWidget(
+            label: 'Confirmar',
+            size: ButtonSize.small,
+            variant: ButtonVariant.secondary,
+            onPressed: () => Navigator.of(context).pop(true),
+          ),
         ),
         SizedBox(height: sizes.sm),
-        ButtonWidget(
-          label: 'Cancelar',
-          size: ButtonSize.small,
-          onPressed: () => onCancel(context),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: sizes.sm),
+          child: ButtonWidget(
+            label: 'Cancelar',
+            size: ButtonSize.small,
+            onPressed: () => Navigator.of(context).pop(false),
+          ),
         ),
       ],
     );

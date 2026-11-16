@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,9 +10,12 @@ import 'package:conviva/shared/utils/profile_image.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/utils/family_link_id.dart';
 import '../../../shared/formatters/brazilian_phone_formatter.dart';
 import '../../../shared/widgets/app_modal_widget.dart';
 import '../../../shared/widgets/button_widget.dart';
+import '../../../shared/widgets/confirm_modal.dart';
 import '../../../shared/widgets/content_panel_widget.dart';
 import '../../../shared/widgets/info_card_widget.dart';
 import '../../../shared/widgets/page_header_widget.dart';
@@ -20,7 +26,10 @@ import '../../auth/providers/authenticated_user_navigator.dart';
 import '../../auth/providers/current_user_provider.dart';
 import '../../routine/models/routine_elder_summary.dart';
 import '../../routine/providers/routine_provider.dart';
+import '../models/active_family_link.dart';
+import '../models/family_link_request.dart';
 import '../models/institution_summary.dart';
+import '../providers/family_link_requests_provider.dart';
 import '../providers/institution_summary_provider.dart';
 
 class ProfilePage extends ConsumerWidget {
@@ -33,17 +42,44 @@ class ProfilePage extends ConsumerWidget {
         .replaceFirst('Exception: ', '');
   }
 
-  Future<void> _goHome(
-    BuildContext context,
-    UserSession session,
-  ) async {
+  Future<void> _goHome(BuildContext context, UserSession session) async {
     await AuthenticatedUserNavigator.open(context, session);
   }
 
-  Future<void> _confirmSignOut(
+  Future<void> _unlinkFamilyRelationship(
     BuildContext context,
-    WidgetRef ref,
+    String linkId,
+    String linkedName,
   ) async {
+    final confirmed = await showConfirmModal(
+      context,
+      title: 'Desvincular vínculo?',
+      message:
+          'Deseja se desvincular de $linkedName? '
+          'Você não terá mais acesso à rotina e à conversa.',
+      confirmLabel: 'Desvincular',
+    );
+
+    if (!confirmed || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await AuthService.instance.unlinkFamilyRelationship(linkId);
+      messenger.showSnackBar(
+        SnackBar(content: Text('Vínculo com $linkedName desfeito.')),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível desfazer o vínculo. Tente novamente.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
     final confirmed = await showAppModal<bool>(
       context: context,
       size: AppModalSize.small,
@@ -100,10 +136,7 @@ class ProfilePage extends ConsumerWidget {
     context.go(RouteNames.onboarding);
   }
 
-  Future<void> _editProfile(
-    BuildContext context,
-    UserSession session,
-  ) {
+  Future<void> _editProfile(BuildContext context, UserSession session) {
     return showAppModal<void>(
       context: context,
       size: AppModalSize.medium,
@@ -111,10 +144,7 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  Widget _institutionVisual(
-    BuildContext context,
-    String? photoUrl,
-  ) {
+  Widget _institutionVisual(BuildContext context, String? photoUrl) {
     final colorScheme = Theme.of(context).colorScheme;
     final sizes = context.appSizes;
     final normalizedPhotoUrl = photoUrl?.trim();
@@ -246,8 +276,11 @@ class ProfilePage extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     AsyncValue<InstitutionSummary> institutionState,
+    UserSession session,
   ) {
     final sizes = context.appSizes;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final eldersState = ref.watch(accessibleRoutineEldersProvider);
     final institutionName = institutionState.value?.name;
 
@@ -261,17 +294,45 @@ class ProfilePage extends ConsumerWidget {
         'Não foi possível carregar os parentes vinculados.',
       ),
       data: (elders) {
-        if (elders.isEmpty) {
-          return _sectionMessage(context, 'Nenhum parente vinculado ainda.');
-        }
-
         return Column(
           children: [
-            for (final elder in elders)
-              Padding(
-                padding: EdgeInsets.only(bottom: sizes.sm),
-                child: _linkedElderCard(context, elder, institutionName),
+            if (elders.isEmpty)
+              _sectionMessage(context, 'Nenhum parente vinculado ainda.')
+            else
+              for (final elder in elders)
+                Padding(
+                  padding: EdgeInsets.only(bottom: sizes.sm),
+                  child: _linkedElderCard(
+                    context,
+                    elder,
+                    institutionName,
+                    session,
+                  ),
+                ),
+            SizedBox(height: sizes.md),
+            Center(
+              child: SizedBox(
+                width: 280,
+                child: OutlinedButton(
+                  onPressed: () => context.push(RouteNames.familyLink),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: Size.fromHeight(sizes.buttonMedium),
+                    backgroundColor: Colors.white,
+                    foregroundColor: colorScheme.primary,
+                    side: BorderSide(color: colorScheme.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(sizes.radiusFull),
+                    ),
+                  ),
+                  child: Text(
+                    'Adicionar Familiar',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ),
               ),
+            ),
           ],
         );
       },
@@ -282,6 +343,7 @@ class ProfilePage extends ConsumerWidget {
     BuildContext context,
     RoutineElderSummary elder,
     String? institutionName,
+    UserSession session,
   ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -326,6 +388,15 @@ class ProfilePage extends ConsumerWidget {
             ),
         ],
       ),
+      trailing: IconButton(
+        tooltip: 'Desvincular idoso',
+        onPressed: () => _unlinkFamilyRelationship(
+          context,
+          FamilyLinkId.forUsers(elderId: elder.id, familyId: session.uid),
+          elder.name,
+        ),
+        icon: const Icon(Icons.link_off_rounded),
+      ),
     );
   }
 
@@ -364,6 +435,32 @@ class ProfilePage extends ConsumerWidget {
           ),
           SizedBox(height: sizes.xs),
           Text(phone, style: theme.textTheme.bodySmall),
+          if (session.accountType == AccountType.caregiver) ...[
+            SizedBox(height: sizes.sm),
+            Text(
+              'Cargo:',
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: sizes.xs),
+            Text(
+              session.jobTitle.isEmpty ? 'Não informado' : session.jobTitle,
+              style: theme.textTheme.bodySmall,
+            ),
+            SizedBox(height: sizes.sm),
+            Text(
+              'Turno de trabalho:',
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            SizedBox(height: sizes.xs),
+            Text(
+              session.workShift.isEmpty ? 'Não informado' : session.workShift,
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
         ],
       ),
       trailing: IconButton.filled(
@@ -373,10 +470,7 @@ class ProfilePage extends ConsumerWidget {
           backgroundColor: colorScheme.primary,
           foregroundColor: colorScheme.onPrimary,
         ),
-        icon: Icon(
-          Icons.edit_rounded,
-          size: sizes.icon(sizes.md),
-        ),
+        icon: Icon(Icons.edit_rounded, size: sizes.icon(sizes.md)),
       ),
     );
   }
@@ -391,60 +485,77 @@ class ProfilePage extends ConsumerWidget {
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
     final isFamily = session.accountType == AccountType.family;
+    final isCaregiver = session.accountType == AccountType.caregiver;
     final phone = session.phone.isEmpty
         ? 'Não informado'
         : BrazilianPhoneFormatter.format(session.phone);
+    final caregiverSubtitle = [
+      if (session.phone.isNotEmpty) phone,
+      if (session.jobTitle.isNotEmpty) session.jobTitle,
+    ].join(' - ');
     final subtitle = isFamily
         ? (session.phone.isEmpty ? 'Parente' : '$phone - Parente')
+        : isCaregiver
+        ? (caregiverSubtitle.isEmpty ? 'Não informado' : caregiverSubtitle)
         : phone;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.only(bottom: sizes.xxl * 3),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            session.name,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleLarge,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          session.name,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.titleLarge,
+        ),
+        SizedBox(height: sizes.xs),
+        Text(
+          subtitle,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
           ),
-          SizedBox(height: sizes.xs),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
+        ),
+        SizedBox(height: sizes.lg),
+        if (session.accountType == AccountType.elder) ...[
+          const _FamilyRequestsSection(),
+          _ActiveFamilyLinksSection(
+            onUnlink: (link) =>
+                _unlinkFamilyRelationship(context, link.linkId, link.name),
           ),
-          SizedBox(height: sizes.lg),
-          if (isFamily) ...[
-            Text('Parentes Vinculados', style: theme.textTheme.titleMedium),
-            SizedBox(height: sizes.sm),
-            _linkedEldersSection(context, ref, institutionState),
-          ] else ...[
-            Text('Instituto', style: theme.textTheme.titleMedium),
-            SizedBox(height: sizes.sm),
-            _institutionCard(context, institutionState),
-          ],
-          SizedBox(height: sizes.lg),
-          Text(
-            'Suas informações',
-            style: theme.textTheme.titleMedium,
-          ),
-          SizedBox(height: sizes.sm),
-          _informationCard(context, ref, session),
         ],
-      ),
+        if (isFamily) ...[
+          Text('Parentes Vinculados', style: theme.textTheme.titleMedium),
+          SizedBox(height: sizes.sm),
+          _linkedEldersSection(context, ref, institutionState, session),
+        ] else ...[
+          Text('Instituto', style: theme.textTheme.titleMedium),
+          SizedBox(height: sizes.sm),
+          _institutionCard(context, institutionState),
+        ],
+        SizedBox(height: sizes.lg),
+        Text('Suas informações', style: theme.textTheme.titleMedium),
+        SizedBox(height: sizes.sm),
+        _informationCard(context, ref, session),
+        if (session.accountType == AccountType.elder) ...[
+          SizedBox(height: sizes.lg),
+          Text('Meu código de acesso', style: theme.textTheme.titleMedium),
+          SizedBox(height: sizes.sm),
+          _AccessCodeCard(code: session.elderLinkCode),
+        ],
+      ],
     );
   }
 
-  Widget _content(
-    BuildContext context,
-    WidgetRef ref,
-    UserSession session,
-  ) {
+  Widget _content(BuildContext context, WidgetRef ref, UserSession session) {
     final colorScheme = Theme.of(context).colorScheme;
     final sizes = context.appSizes;
+    final bottomScrollPadding =
+        sizes.lg +
+        sizes.xxl +
+        sizes.xl +
+        sizes.sm +
+        MediaQuery.viewPaddingOf(context).bottom +
+        sizes.lg;
     final institutionState = ref.watch(
       institutionSummaryProvider(session.institutionId),
     );
@@ -466,27 +577,29 @@ class ProfilePage extends ConsumerWidget {
       ),
       child: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            PageHeaderWidget(
-              title: 'Seu Perfil',
-              onBackPressed: () => _goHome(context, session),
-              trailing: IconButton(
-                tooltip: 'Sair da conta',
-                onPressed: () => _confirmSignOut(context, ref),
-                icon: Icon(
-                  Icons.logout_rounded,
-                  color: colorScheme.onPrimary,
-                  size: sizes.icon(sizes.lg),
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: PageHeaderWidget(
+                title: 'Seu Perfil',
+                onBackPressed: () => _goHome(context, session),
+                trailing: IconButton(
+                  tooltip: 'Sair da conta',
+                  onPressed: () => _confirmSignOut(context, ref),
+                  icon: Icon(
+                    Icons.logout_rounded,
+                    color: colorScheme.onPrimary,
+                    size: sizes.icon(sizes.lg),
+                  ),
                 ),
               ),
             ),
-            Expanded(
+            SliverToBoxAdapter(
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned.fill(
-                    top: sizes.xl,
+                  Padding(
+                    padding: EdgeInsets.only(top: sizes.xl),
                     child: ContentPanelWidget(
                       borderRadius: BorderRadius.only(
                         topLeft: panelRadius,
@@ -496,7 +609,7 @@ class ProfilePage extends ConsumerWidget {
                         sizes.lg,
                         sizes.xxl + sizes.lg,
                         sizes.lg,
-                        0,
+                        bottomScrollPadding,
                       ),
                       child: _profilePanelContent(
                         context,
@@ -514,6 +627,10 @@ class ProfilePage extends ConsumerWidget {
                   ),
                 ],
               ),
+            ),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ColoredBox(color: Theme.of(context).colorScheme.surface),
             ),
           ],
         ),
@@ -533,10 +650,7 @@ class ProfilePage extends ConsumerWidget {
         error: (error, _) => Center(
           child: Padding(
             padding: EdgeInsets.all(sizes.lg),
-            child: Text(
-              _errorMessage(error),
-              textAlign: TextAlign.center,
-            ),
+            child: Text(_errorMessage(error), textAlign: TextAlign.center),
           ),
         ),
         data: (session) {
@@ -550,7 +664,6 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 }
-
 
 /// Formulário de edição do perfil.
 ///
@@ -570,6 +683,8 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
   late final TextEditingController _phoneController;
+  late final TextEditingController _jobTitleController;
+  late final TextEditingController _workShiftController;
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -580,12 +695,18 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     _phoneController = TextEditingController(
       text: BrazilianPhoneFormatter.format(widget.session.phone),
     );
+    _jobTitleController = TextEditingController(text: widget.session.jobTitle);
+    _workShiftController = TextEditingController(
+      text: widget.session.workShift,
+    );
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _jobTitleController.dispose();
+    _workShiftController.dispose();
     super.dispose();
   }
 
@@ -605,9 +726,13 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     });
 
     try {
-      await ref.read(currentUserProvider.notifier).updateProfile(
+      await ref
+          .read(currentUserProvider.notifier)
+          .updateProfile(
             name: _nameController.text,
             phone: _phoneController.text,
+            jobTitle: _jobTitleController.text,
+            workShift: _workShiftController.text,
           );
 
       if (!mounted) return;
@@ -662,6 +787,24 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
               return null;
             },
           ),
+          if (widget.session.accountType == AccountType.caregiver) ...[
+            SizedBox(height: sizes.md),
+            Text('Cargo:', style: theme.textTheme.bodySmall),
+            SizedBox(height: sizes.sm),
+            TextFieldWidget(
+              controller: _jobTitleController,
+              hintText: 'Ex.: Enfermeiro(a)',
+              textInputAction: TextInputAction.next,
+            ),
+            SizedBox(height: sizes.md),
+            Text('Turno de trabalho:', style: theme.textTheme.bodySmall),
+            SizedBox(height: sizes.sm),
+            TextFieldWidget(
+              controller: _workShiftController,
+              hintText: 'Ex.: Noturno - 19:00',
+              textInputAction: TextInputAction.done,
+            ),
+          ],
           if (_errorMessage != null) ...[
             SizedBox(height: sizes.md),
             Text(
@@ -704,8 +847,7 @@ class _ProfileAvatar extends ConsumerStatefulWidget {
 class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
   bool _isBusy = false;
 
-  bool get _hasPhoto =>
-      profileImageProvider(widget.session.photoUrl) != null;
+  bool get _hasPhoto => profileImageProvider(widget.session.photoUrl) != null;
 
   Future<void> _changePhoto() async {
     if (_isBusy) return;
@@ -762,10 +904,7 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
             ? image.name.split('.').last
             : 'jpg';
 
-        await notifier.updateProfilePhoto(
-          bytes: bytes,
-          extension: extension,
-        );
+        await notifier.updateProfilePhoto(bytes: bytes, extension: extension);
       }
     } catch (error) {
       messenger.showSnackBar(
@@ -797,11 +936,14 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: colorScheme.surface, width: sizes.xs),
+                border: Border.all(
+                  color: colorScheme.primary,
+                  width: sizes.xs / 2,
+                ),
               ),
               child: CircleAvatar(
                 radius: sizes.xxl,
-                backgroundColor: colorScheme.primary.withValues(alpha: .14),
+                backgroundColor: colorScheme.surface,
                 child: ClipOval(
                   child: SizedBox.square(
                     dimension: diameter,
@@ -812,10 +954,8 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
                           Image(
                             image: photoProvider,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => _fallbackIcon(
-                              colorScheme,
-                              sizes,
-                            ),
+                            errorBuilder: (_, _, _) =>
+                                _fallbackIcon(colorScheme, sizes),
                           )
                         else
                           _fallbackIcon(colorScheme, sizes),
@@ -862,6 +1002,493 @@ class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
         size: sizes.icon(sizes.xxl),
         color: colorScheme.primary,
       ),
+    );
+  }
+}
+
+class _ActiveFamilyLinksSection extends ConsumerWidget {
+  const _ActiveFamilyLinksSection({required this.onUnlink});
+
+  final ValueChanged<ActiveFamilyLink> onUnlink;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final sizes = context.appSizes;
+    final familiesState = ref.watch(activeFamilyLinksProvider);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: sizes.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Familiares vinculados', style: theme.textTheme.titleMedium),
+          SizedBox(height: sizes.sm),
+          familiesState.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (_, _) => Text(
+              'Não foi possível carregar os familiares vinculados.',
+              style: theme.textTheme.bodySmall,
+            ),
+            data: (families) {
+              if (families.isEmpty) {
+                return Text(
+                  'Nenhum familiar vinculado ainda.',
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                );
+              }
+
+              return Column(
+                children: [
+                  for (final family in families)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: sizes.sm),
+                      child: InfoCardWidget(
+                        size: InfoCardSize.small,
+                        borderRadius: BorderRadius.circular(sizes.radiusMd),
+                        leading: CircleAvatar(
+                          foregroundImage: profileImageProvider(
+                            family.photoUrl,
+                          ),
+                          child: const Icon(Icons.person_rounded),
+                        ),
+                        content: Text(
+                          family.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall,
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'Desvincular familiar',
+                          onPressed: () => onUnlink(family),
+                          icon: const Icon(Icons.link_off_rounded),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pedidos de vínculo de familiares aguardando resposta do idoso.
+/// Só aparece quando existe pelo menos um pedido.
+class _FamilyRequestsSection extends ConsumerWidget {
+  const _FamilyRequestsSection();
+
+  Future<void> _respond(
+    BuildContext context,
+    FamilyLinkRequest request, {
+    required bool accept,
+  }) async {
+    final confirmed = await showConfirmModal(
+      context,
+      title: accept ? 'Aceitar familiar?' : 'Recusar pedido?',
+      message: accept
+          ? '${request.name} poderá acompanhar sua rotina e conversar com você.'
+          : '${request.name} não será vinculado(a) a você.',
+      confirmLabel: accept ? 'Aceitar' : 'Recusar',
+    );
+
+    if (!confirmed || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await AuthService.instance.respondToFamilyLinkRequest(
+        linkId: request.linkId,
+        accept: accept,
+      );
+
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            accept
+                ? '${request.name} agora está vinculado(a) a você.'
+                : 'Pedido recusado.',
+          ),
+        ),
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não foi possível responder ao pedido. Tente novamente.',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final requests = ref.watch(pendingFamilyRequestsProvider).asData?.value;
+    if (requests == null || requests.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: sizes.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Pedidos de familiares', style: theme.textTheme.titleMedium),
+          SizedBox(height: sizes.sm),
+          for (final request in requests)
+            Container(
+              margin: EdgeInsets.only(bottom: sizes.sm),
+              padding: EdgeInsets.all(sizes.md),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(sizes.radiusMd),
+                border: Border.all(
+                  color: colorScheme.primary.withValues(alpha: .45),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: AppColors.shadow,
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: colorScheme.primary.withValues(
+                          alpha: .14,
+                        ),
+                        foregroundImage: profileImageProvider(request.photoUrl),
+                        child: Icon(
+                          Icons.person_rounded,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                      SizedBox(width: sizes.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              request.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall,
+                            ),
+                            Text(
+                              'quer se vincular a você',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: sizes.md),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ButtonWidget(
+                          label: 'Recusar',
+                          size: ButtonSize.small,
+                          variant: ButtonVariant.outlined,
+                          onPressed: () =>
+                              _respond(context, request, accept: false),
+                        ),
+                      ),
+                      SizedBox(width: sizes.sm),
+                      Expanded(
+                        child: ButtonWidget(
+                          label: 'Aceitar',
+                          size: ButtonSize.small,
+                          variant: ButtonVariant.secondary,
+                          onPressed: () =>
+                              _respond(context, request, accept: true),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Mostra o código do idoso só depois de confirmar a senha, e esconde de
+/// novo sozinho depois de alguns segundos.
+class _AccessCodeCard extends StatefulWidget {
+  const _AccessCodeCard({required this.code});
+
+  final String? code;
+
+  @override
+  State<_AccessCodeCard> createState() => _AccessCodeCardState();
+}
+
+class _AccessCodeCardState extends State<_AccessCodeCard> {
+  static const _visibleFor = Duration(seconds: 30);
+
+  Timer? _hideTimer;
+  bool _revealed = false;
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _reveal() async {
+    final confirmed = await showAppModal<bool>(
+      context: context,
+      title: 'Confirme sua senha',
+      size: AppModalSize.small,
+      child: const _PasswordPrompt(),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _revealed = true);
+    _hideTimer?.cancel();
+    _hideTimer = Timer(_visibleFor, _hide);
+  }
+
+  void _hide() {
+    _hideTimer?.cancel();
+    if (mounted) setState(() => _revealed = false);
+  }
+
+  Future<void> _copy(String code) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(ClipboardData(text: code));
+    messenger.showSnackBar(const SnackBar(content: Text('Código copiado.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+    final code = widget.code?.trim() ?? '';
+
+    final Widget content;
+
+    if (code.isEmpty) {
+      content = Text(
+        'Código indisponível no momento.',
+        style: theme.textTheme.bodyMedium,
+      );
+    } else if (_revealed) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            code,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              letterSpacing: 3,
+              color: colorScheme.primary,
+            ),
+          ),
+          SizedBox(height: sizes.xs),
+          Text(
+            'O código some sozinho em 30 segundos.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          SizedBox(height: sizes.md),
+          Row(
+            children: [
+              Expanded(
+                child: ButtonWidget(
+                  label: 'Ocultar',
+                  size: ButtonSize.small,
+                  variant: ButtonVariant.outlined,
+                  onPressed: _hide,
+                ),
+              ),
+              SizedBox(width: sizes.sm),
+              Expanded(
+                child: ButtonWidget(
+                  label: 'Copiar',
+                  size: ButtonSize.small,
+                  variant: ButtonVariant.secondary,
+                  onPressed: () => _copy(code),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    } else {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '••••••',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineMedium?.copyWith(letterSpacing: 4),
+          ),
+          SizedBox(height: sizes.xs),
+          Text(
+            'É o código que seus familiares usam para se vincular a você. '
+            'Digite sua senha para ver.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+          SizedBox(height: sizes.md),
+          ButtonWidget(
+            label: 'Mostrar código',
+            size: ButtonSize.small,
+            variant: ButtonVariant.secondary,
+            onPressed: _reveal,
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      padding: EdgeInsets.all(sizes.md),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(sizes.radiusMd),
+        boxShadow: const [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 8,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: content,
+    );
+  }
+}
+
+class _PasswordPrompt extends StatefulWidget {
+  const _PasswordPrompt();
+
+  @override
+  State<_PasswordPrompt> createState() => _PasswordPromptState();
+}
+
+class _PasswordPromptState extends State<_PasswordPrompt> {
+  final _passwordController = TextEditingController();
+  bool _obscure = true;
+  bool _isChecking = false;
+  String? _errorMessage;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    if (_isChecking) return;
+
+    final password = _passwordController.text;
+    if (password.isEmpty) {
+      setState(() => _errorMessage = 'Digite sua senha.');
+      return;
+    }
+
+    setState(() {
+      _isChecking = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await AuthService.instance.verifyCurrentPassword(password);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isChecking = false;
+        _errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Por segurança, digite a senha que você usa para entrar.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium,
+        ),
+        SizedBox(height: sizes.lg),
+        TextFieldWidget(
+          controller: _passwordController,
+          hintText: 'Senha',
+          obscureText: _obscure,
+          enabled: !_isChecking,
+          textInputAction: TextInputAction.done,
+          onFieldSubmitted: (_) => _confirm(),
+          suffixIcon: IconButton(
+            tooltip: _obscure ? 'Mostrar senha' : 'Ocultar senha',
+            onPressed: () => setState(() => _obscure = !_obscure),
+            icon: Icon(
+              _obscure
+                  ? Icons.visibility_outlined
+                  : Icons.visibility_off_outlined,
+              size: sizes.icon(sizes.lg),
+            ),
+          ),
+        ),
+        if (_errorMessage != null) ...[
+          SizedBox(height: sizes.sm),
+          Text(
+            _errorMessage!,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: colorScheme.error,
+            ),
+          ),
+        ],
+        SizedBox(height: sizes.xl),
+        ButtonWidget(
+          label: _isChecking ? 'Confirmando...' : 'Confirmar',
+          variant: ButtonVariant.secondary,
+          onPressed: _isChecking ? null : _confirm,
+        ),
+        SizedBox(height: sizes.md),
+        ButtonWidget(
+          label: 'Cancelar',
+          onPressed: _isChecking
+              ? null
+              : () => Navigator.of(context).pop(false),
+        ),
+      ],
     );
   }
 }

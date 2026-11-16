@@ -7,6 +7,8 @@ class RouteNames {
   static const register = '/register';
   static const login = '/login';
   static const elderLogin = '/login/elder';
+  static const forgotPassword = '/login/forgot-password';
+  static const verifyEmail = '/verify-email';
   static const familyLink = '/family-link';
 
   static const elderHome = '/home/elder';

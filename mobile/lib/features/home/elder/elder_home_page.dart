@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:conviva/shared/utils/profile_image.dart';
-
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
-import '../../../core/constants/assets_paths.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../shared/widgets/action_card_widget.dart';
+import '../../../shared/widgets/auri_avatar_widget.dart';
 import '../../../shared/widgets/content_panel_widget.dart';
 import '../widgets/home_header_widget.dart';
 import '../../../shared/widgets/info_card_widget.dart';
@@ -16,6 +14,9 @@ import '../../auth/models/user_session.dart';
 import '../../auth/providers/current_user_provider.dart';
 import '../../chat/models/conversation_preview.dart';
 import '../../chat/providers/conversation_previews_provider.dart';
+import '../../chat/widgets/chat_avatar_widget.dart';
+import '../../chat/widgets/conversation_card_content.dart';
+import '../../chat/utils/conversation_preview_sorter.dart';
 import '../../routine/providers/next_elder_routine_provider.dart';
 import '../widgets/next_task_card.dart';
 
@@ -36,35 +37,16 @@ class ElderHomePage extends ConsumerWidget {
     );
   }
 
-  IconData _participantIcon(ConversationParticipantType participantType) {
-    return switch (participantType) {
-      ConversationParticipantType.family => Icons.family_restroom_rounded,
-      ConversationParticipantType.caregiver => Icons.health_and_safety_rounded,
-      ConversationParticipantType.elder => Icons.elderly_rounded,
-      ConversationParticipantType.staff => Icons.badge_rounded,
-    };
-  }
-
   Widget _conversationAvatar(
     BuildContext context,
     ConversationPreview conversation,
   ) {
-    final colorScheme = Theme.of(context).colorScheme;
     final sizes = context.appSizes;
-    final normalizedPhotoUrl = conversation.photoUrl?.trim();
-    final hasPhoto =
-        normalizedPhotoUrl != null && normalizedPhotoUrl.isNotEmpty;
-
-    return CircleAvatar(
-      backgroundColor: colorScheme.primary.withValues(alpha: .12),
-      foregroundImage: hasPhoto
-          ? profileImageProvider(normalizedPhotoUrl)
-          : null,
-      child: Icon(
-        _participantIcon(conversation.participantType),
-        color: colorScheme.primary,
-        size: sizes.md,
-      ),
+    return ChatAvatarWidget(
+      participantType: conversation.participantType,
+      photoUrl: conversation.photoUrl,
+      unreadCount: conversation.unreadCount,
+      size: sizes.buttonSmall,
     );
   }
 
@@ -114,17 +96,16 @@ class ElderHomePage extends ConsumerWidget {
       ),
       data: (conversations) {
         final linkedFamilyIds = linkedFamilyIdsState.asData?.value;
-        final visibleConversations = conversations
-            .where((conversation) {
-              if (conversation.participantType !=
-                  ConversationParticipantType.family) {
-                return true;
-              }
-              return linkedFamilyIds != null &&
-                  linkedFamilyIds.contains(conversation.participantId);
-            })
-            .take(2)
-            .toList();
+        final visibleConversations = sortConversationsByLatestMessage(
+          conversations.where((conversation) {
+            if (conversation.participantType !=
+                ConversationParticipantType.family) {
+              return true;
+            }
+            return linkedFamilyIds != null &&
+                linkedFamilyIds.contains(conversation.participantId);
+          }),
+        ).take(3).toList();
 
         if (visibleConversations.isEmpty) {
           return _emptyMessage(
@@ -146,10 +127,20 @@ class ElderHomePage extends ConsumerWidget {
                   context,
                   visibleConversations[index],
                 ),
-                title: visibleConversations[index].participantName,
-                subtitle: visibleConversations[index].lastMessage,
+                content: ConversationCardContent(
+                  conversation: visibleConversations[index],
+                  emptyMessage: 'Toque para conversar',
+                  showTimestamp: false,
+                ),
                 size: InfoCardSize.small,
-                showGotoButton: true,
+                trailing: ConversationCardTrailingWidget(
+                  conversation: visibleConversations[index],
+                  onPressed: () => context.go(
+                    RouteNames.chatConversationPath(
+                      visibleConversations[index].id,
+                    ),
+                  ),
+                ),
                 onPressed: () => context.go(
                   RouteNames.chatConversationPath(
                     visibleConversations[index].id,
@@ -162,7 +153,14 @@ class ElderHomePage extends ConsumerWidget {
             SizedBox(height: sizes.sm),
             TextButton(
               onPressed: () => context.go(RouteNames.chat),
-              child: const Text('Ver mais'),
+              child: Text(
+                'Ver todos',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: context.appGradientColors.bottom,
+                  decoration: TextDecoration.underline,
+                  decorationColor: context.appGradientColors.bottom,
+                ),
+              ),
             ),
           ],
         );
@@ -181,14 +179,21 @@ class ElderHomePage extends ConsumerWidget {
     final nextRoutine = ref.watch(nextElderRoutineProvider);
     final conversations = ref.watch(conversationPreviewsProvider);
     final linkedFamilyIds = ref.watch(linkedFamilyIdsProvider);
+    final bottomScrollPadding =
+        sizes.lg +
+        sizes.xxl +
+        sizes.xl +
+        sizes.sm +
+        MediaQuery.viewPaddingOf(context).bottom +
+        sizes.lg;
     final displayName = session.name.trim().isEmpty
         ? 'Usuário'
         : session.name.trim();
 
     Widget actionIllustration() {
       return Icon(
-        Icons.report_rounded,
-        size: sizes.xxl * 2,
+        Icons.feedback_rounded,
+        size: sizes.icon(sizes.xxl * 2),
         color: colorScheme.onPrimary,
       );
     }
@@ -203,22 +208,33 @@ class ElderHomePage extends ConsumerWidget {
       ),
       child: SafeArea(
         bottom: false,
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              HomeHeaderWidget(
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: HomeHeaderWidget(
                 name: displayName,
                 greeting: 'Olá,',
                 photoUrl: session.photoUrl,
               ),
-              ContentPanelWidget(
-                topPanelPadding: EdgeInsets.fromLTRB(
+            ),
+            SliverToBoxAdapter(
+              child: Container(
+                key: const ValueKey('elder-home-next-task-panel'),
+                width: double.infinity,
+                padding: EdgeInsets.fromLTRB(
                   sizes.lg,
                   sizes.lg,
                   sizes.lg,
                   sizes.xl,
                 ),
-                topPanel: nextRoutine.when(
+                decoration: BoxDecoration(
+                  color: AppColors.panelTop,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(sizes.radiusLg + sizes.sm),
+                    topRight: Radius.circular(sizes.radiusLg + sizes.sm),
+                  ),
+                ),
+                child: nextRoutine.when(
                   loading: () =>
                       const NextTaskCard(task: null, isLoading: true),
                   error: (_, _) => const NextTaskCard(
@@ -232,55 +248,65 @@ class ElderHomePage extends ConsumerWidget {
                         : () => context.go(RouteNames.routine),
                   ),
                 ),
-                padding: EdgeInsets.fromLTRB(
-                  sizes.lg,
-                  sizes.xl + sizes.sm,
-                  sizes.lg,
-                  sizes.xxl,
-                ),
-                child: Column(
-                  children: [
-                    _sectionTitle(context, 'Chat - Converse'),
-                    SizedBox(height: sizes.md),
-                    _chatPreview(context, conversations, linkedFamilyIds),
-                    SizedBox(height: sizes.xxl),
-                    _sectionTitle(
-                      context,
-                      'Assistente Virtual  -\nTire Dúvidas',
-                    ),
-                    SizedBox(height: sizes.md),
-                    ActionCardWidget(
-                      title: 'Tire dúvidas sobre\ntecnologia com o Auri',
-                      imageAsset: AssetPaths.auri,
-                      illustrationSize: sizes.xxl * 2.5,
-                      imageSemanticLabel: 'Assistente virtual Auri',
-                      actionLabel: 'Comece agora!',
-                      onPressed: () {
-                        context.go(RouteNames.auri);
-                      },
-                    ),
-                    SizedBox(height: sizes.xxl),
-                    _sectionTitle(context, 'Central de Denúncias  -\nDenuncie'),
-                    SizedBox(height: sizes.md),
-                    ActionCardWidget(
-                      title:
-                          'Denuncie abusos que\nestiver sofrendo de\n'
-                          'maneira anônima',
-                      illustration: actionIllustration(),
-                      illustrationSize: sizes.xxl * 2,
-                      actionLabel: 'Denuncie!',
-                      onPressed: () {
-                        context.push(RouteNames.reportStart);
-                      },
-                      layout: ActionCardLayout.textFirst,
-                      showIllustrationBackground: false,
-                    ),
-                  ],
+              ),
+            ),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: ColoredBox(
+                color: AppColors.panelTop,
+                child: ContentPanelWidget(
+                  padding: EdgeInsets.fromLTRB(
+                    sizes.lg,
+                    sizes.xl + sizes.sm,
+                    sizes.lg,
+                    bottomScrollPadding,
+                  ),
+                  child: Column(
+                    children: [
+                      _sectionTitle(context, 'Chat - Converse'),
+                      SizedBox(height: sizes.md),
+                      _chatPreview(context, conversations, linkedFamilyIds),
+                      SizedBox(height: sizes.xxl),
+                      _sectionTitle(
+                        context,
+                        'Assistente Virtual  -\nTire Dúvidas',
+                      ),
+                      SizedBox(height: sizes.md),
+                      ActionCardWidget(
+                        title: 'Tire dúvidas sobre\ntecnologia com o Auri',
+                        illustration: const AuriAvatarWidget(),
+                        illustrationSize: sizes.xxl * 2.5,
+                        actionLabel: 'Comece agora!',
+                        onPressed: () {
+                          context.go(RouteNames.auri);
+                        },
+                      ),
+                      SizedBox(height: sizes.xxl),
+                      _sectionTitle(
+                        context,
+                        'Central de Denúncias  -\nDenuncie',
+                      ),
+                      SizedBox(height: sizes.md),
+                      ActionCardWidget(
+                        title:
+                            'Denuncie abusos que\nestiver sofrendo de\n'
+                            'maneira anônima',
+                        illustration: actionIllustration(),
+                        illustrationSize: sizes.xxl * 2,
+                        actionLabel: 'Denuncie!',
+                        onPressed: () {
+                          context.push(RouteNames.reportStart);
+                        },
+                        layout: ActionCardLayout.textFirst,
+                        showIllustrationBackground: false,
+                      ),
+                      SizedBox(height: sizes.xxl * 2 + sizes.xl),
+                    ],
+                  ),
                 ),
               ),
-              SizedBox(height: sizes.xxl * 2 + sizes.xl),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -306,7 +332,11 @@ class ElderHomePage extends ConsumerWidget {
               : Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(icon, size: sizes.xxl, color: colorScheme.primary),
+                    Icon(
+                      icon,
+                      size: sizes.icon(sizes.xxl),
+                      color: colorScheme.primary,
+                    ),
                     SizedBox(height: sizes.md),
                     Text(
                       message,

@@ -32,7 +32,7 @@ class BackButtonWidget extends StatelessWidget {
       dimension: sizes.buttonSmall,
       child: Icon(
         Icons.arrow_back_ios_new_rounded,
-        size: sizes.md,
+        size: sizes.icon(sizes.md),
         color: iconColor,
       ),
     );

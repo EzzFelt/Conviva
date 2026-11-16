@@ -69,12 +69,14 @@ class ButtonWidget extends StatelessWidget {
         ),
     };
 
+    // Altura mínima (e não fixa): com fonte grande o texto quebra em duas
+    // linhas e o botão cresce em vez de cortar o rótulo.
     return SizedBox(
       width: double.infinity,
-      height: _height(sizes),
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
+          minimumSize: Size(double.infinity, _height(sizes)),
           elevation: variant == ButtonVariant.outlined ? 0 : 1,
           backgroundColor: backgroundColor,
           foregroundColor: foregroundColor,
@@ -89,6 +91,7 @@ class ButtonWidget extends StatelessWidget {
         ),
         child: Text(
           label,
+          textAlign: TextAlign.center,
           style: theme.textTheme.labelLarge?.copyWith(
             color: onPressed == null ? null : foregroundColor,
           ),

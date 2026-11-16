@@ -1,10 +1,17 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:conviva/shared/utils/profile_image.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../constants/recovery_config.dart';
 import '../utils/family_link_id.dart';
+
+class EmailVerificationRequiredException implements Exception {
+  const EmailVerificationRequiredException();
+}
 
 class AuthRegister {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -15,17 +22,14 @@ class AuthRegister {
   }
 
   static String normalizeElderCode(String elderCode) {
-    return elderCode
-        .trim()
-        .toUpperCase()
-        .replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    return elderCode.trim().toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
   }
 
   static String generateElderLinkCode(String seed) {
-    final cleaned = seed
-        .trim()
-        .toUpperCase()
-        .replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    final cleaned = seed.trim().toUpperCase().replaceAll(
+      RegExp(r'[^A-Z0-9]'),
+      '',
+    );
 
     if (cleaned.isEmpty) {
       throw ArgumentError('Não foi possível gerar o código do idoso.');
@@ -39,6 +43,23 @@ class AuthRegister {
   }
 
   static String elderAuthEmail(String elderCode) {
+    final normalizedCode = normalizeElderCode(elderCode);
+
+    if (!RegExp(r'^ELD[A-Z0-9]{4,}$').hasMatch(normalizedCode)) {
+      throw Exception('Informe um código de acesso válido.');
+    }
+
+    // Com a recuperação configurada, o e-mail interno cai numa caixa real.
+    if (RecoveryConfig.isElderRecoveryConfigured) {
+      return RecoveryConfig.elderAuthEmail(normalizedCode.toLowerCase());
+    }
+
+    return legacyElderAuthEmail(elderCode);
+  }
+
+  /// E-mail interno usado antes da recuperação de senha existir.
+  /// Idosos já cadastrados continuam entrando por ele.
+  static String legacyElderAuthEmail(String elderCode) {
     final normalizedCode = normalizeElderCode(elderCode);
 
     if (!RegExp(r'^ELD[A-Z0-9]{4,}$').hasMatch(normalizedCode)) {
@@ -210,30 +231,27 @@ class AuthRegister {
 
     try {
       await user.updateDisplayName(name.trim());
-      await _firestore.collection('users').doc(user.uid).set({
-        'name': name.trim(),
-        'email': email,
-        'phone': phone,
-        'type': accountType,
-        'institutionId': institutionId,
-        'status': 'active',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    } on FirebaseException catch (error) {
-      await _deleteCreatedUser(user);
-
-      if (error.code == 'permission-denied') {
-        throw Exception(
-          'O Firestore recusou a criação do perfil. '
-          'Verifique as regras publicadas.',
-        );
-      }
-
-      rethrow;
+      await AuthService.instance._savePendingEmailRegistration(
+        uid: user.uid,
+        registration: {
+          'name': name.trim(),
+          'email': email,
+          'phone': phone,
+          'type': accountType,
+          'institutionId': institutionId,
+        },
+      );
     } catch (_) {
+      try {
+        await AuthService.instance._clearPendingEmailRegistration(user.uid);
+      } catch (_) {
+        // Keep the original persistence error as the registration failure.
+      }
       await _deleteCreatedUser(user);
       rethrow;
     }
+
+    await user.sendEmailVerification();
   }
 
   Future<void> _deleteCreatedUser(User user) async {
@@ -262,6 +280,10 @@ class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SharedPreferencesAsync _localStore = SharedPreferencesAsync();
+
+  static const String _pendingRegistrationPrefix =
+      'conviva_pending_email_registration_';
 
   String? get currentUserId => _auth.currentUser?.uid;
 
@@ -276,10 +298,21 @@ class AuthService {
     );
 
     try {
+      final user = credential.user;
+      if (accountType != 'idoso' && user?.emailVerified != true) {
+        throw const EmailVerificationRequiredException();
+      }
+
+      if (accountType != 'idoso') {
+        await completePendingEmailRegistration();
+      }
+
       return await _validatedUserDocument(
         credential: credential,
         expectedAccountType: accountType,
       );
+    } on EmailVerificationRequiredException {
+      rethrow;
     } catch (_) {
       await _auth.signOut();
       rethrow;
@@ -289,12 +322,152 @@ class AuthService {
   Future<DocumentSnapshot<Map<String, dynamic>>> loginElderWithCodeAndPassword({
     required String elderCode,
     required String password,
-  }) {
-    return loginWithEmailAndPassword(
-      email: AuthRegister.elderAuthEmail(elderCode),
-      password: password,
-      accountType: 'idoso',
+  }) async {
+    final primaryEmail = AuthRegister.elderAuthEmail(elderCode);
+    final legacyEmail = AuthRegister.legacyElderAuthEmail(elderCode);
+
+    try {
+      return await loginWithEmailAndPassword(
+        email: primaryEmail,
+        password: password,
+        accountType: 'idoso',
+      );
+    } on FirebaseAuthException catch (error) {
+      const credentialErrors = {
+        'invalid-credential',
+        'invalid-login-credentials',
+        'user-not-found',
+        'wrong-password',
+      };
+
+      // Idosos cadastrados antes da recuperação usam o e-mail antigo.
+      if (primaryEmail == legacyEmail ||
+          !credentialErrors.contains(error.code)) {
+        rethrow;
+      }
+
+      try {
+        return await loginWithEmailAndPassword(
+          email: legacyEmail,
+          password: password,
+          accountType: 'idoso',
+        );
+      } on FirebaseAuthException {
+        throw error;
+      }
+    }
+  }
+
+  /// Pede o link de redefinição de senha do idoso a partir do código ELD.
+  /// O link vai para a caixa de suporte (veja [RecoveryConfig]).
+  Future<void> sendElderPasswordReset(String elderCode) async {
+    if (!RecoveryConfig.isElderRecoveryConfigured) {
+      throw Exception(
+        'A recuperação de senha do idoso ainda não foi configurada.',
+      );
+    }
+
+    final email = AuthRegister.elderAuthEmail(elderCode);
+
+    await _auth.sendPasswordResetEmail(email: email);
+  }
+
+  String? get currentUserEmail => _auth.currentUser?.email;
+
+  /// O e-mail da conta já foi confirmado pelo link enviado?
+  Future<bool> isCurrentEmailVerified() async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    if (!user.emailVerified) await user.reload();
+    final refreshedUser = _auth.currentUser;
+    final isVerified = refreshedUser?.emailVerified ?? false;
+    if (isVerified) {
+      await refreshedUser!.getIdToken(true);
+    }
+    return isVerified;
+  }
+
+  Future<void> resendVerificationEmail() async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Usuário não autenticado.');
+
+    await user.sendEmailVerification();
+  }
+
+  Future<bool> hasPendingEmailRegistration() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return false;
+
+    return await _localStore.getString(_pendingEmailRegistrationKey(uid)) !=
+        null;
+  }
+
+  Future<void> completePendingEmailRegistration() async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Usuário não autenticado.');
+    if (!user.emailVerified) {
+      throw const EmailVerificationRequiredException();
+    }
+
+    await user.getIdToken(true);
+    final userDocument = _firestore.collection('users').doc(user.uid);
+    final existing = await userDocument.get();
+    if (existing.exists) {
+      await _clearPendingEmailRegistration(user.uid);
+      return;
+    }
+
+    final pendingJson = await _localStore.getString(
+      _pendingEmailRegistrationKey(user.uid),
     );
+    if (pendingJson == null) {
+      throw StateError(
+        'Os dados pendentes do cadastro não foram encontrados neste '
+        'dispositivo. Entre em contato com o suporte.',
+      );
+    }
+
+    final decoded = jsonDecode(pendingJson);
+    if (decoded is! Map) {
+      throw const FormatException('Dados pendentes de cadastro inválidos.');
+    }
+    final registration = Map<String, dynamic>.from(decoded);
+    if (registration['email'] != user.email ||
+        !{'caregiver', 'family'}.contains(registration['type'])) {
+      throw const FormatException(
+        'Os dados pendentes não correspondem à conta autenticada.',
+      );
+    }
+
+    await _firestore.runTransaction((transaction) async {
+      final currentDocument = await transaction.get(userDocument);
+      if (currentDocument.exists) return;
+
+      transaction.set(userDocument, {
+        ...registration,
+        'status': 'active',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    });
+
+    await _clearPendingEmailRegistration(user.uid);
+  }
+
+  static String _pendingEmailRegistrationKey(String uid) =>
+      '$_pendingRegistrationPrefix$uid';
+
+  Future<void> _savePendingEmailRegistration({
+    required String uid,
+    required Map<String, dynamic> registration,
+  }) async {
+    await _localStore.setString(
+      _pendingEmailRegistrationKey(uid),
+      jsonEncode(registration),
+    );
+  }
+
+  Future<void> _clearPendingEmailRegistration(String uid) async {
+    await _localStore.remove(_pendingEmailRegistrationKey(uid));
   }
 
   Future<DocumentSnapshot<Map<String, dynamic>>> _validatedUserDocument({
@@ -352,10 +525,7 @@ class AuthService {
       return null;
     }
 
-    return {
-      'id': elderDoc.id,
-      ...elderData,
-    };
+    return {'id': elderDoc.id, ...elderData};
   }
 
   Future<Map<String, dynamic>> linkFamilyMemberToElder({
@@ -427,29 +597,119 @@ class AuthService {
       elderId: elderDoc.id,
       familyId: normalizedFamilyUid,
     );
-    final existingLink = await _firestore
-        .collection('familyLinks')
-        .doc(linkId)
-        .get();
+    final linkReference = _firestore.collection('familyLinks').doc(linkId);
+    final existingLink = await linkReference.get();
+    final existingStatus = existingLink.data()?['status']?.toString();
 
-    if (existingLink.exists &&
-        existingLink.data()?['status']?.toString() == 'active') {
+    if (existingLink.exists && existingStatus == 'active') {
       throw Exception('Você já está vinculado a este idoso.');
     }
 
-    await _firestore.collection('familyLinks').doc(linkId).set({
-      'createdAt': FieldValue.serverTimestamp(),
-      'elderId': elderDoc.id,
-      'familiarId': normalizedFamilyUid,
-      'institutionId': elderInstitutionId,
-      'receiveNotifications': receiveNotifications,
-      'status': 'active',
-    });
+    if (existingLink.exists && existingStatus == 'pending') {
+      throw Exception(
+        'Você já enviou uma solicitação para este idoso. '
+        'Aguarde ele aceitar.',
+      );
+    }
 
-    return {
-      'id': elderDoc.id,
-      ...elderData,
-    };
+    if (existingLink.exists) {
+      // Solicitação recusada antes: o familiar pode pedir de novo.
+      await linkReference.update({
+        'createdAt': FieldValue.serverTimestamp(),
+        'receiveNotifications': receiveNotifications,
+        'status': 'pending',
+      });
+    } else {
+      // O vínculo só vira 'active' quando o próprio idoso aceitar.
+      await linkReference.set({
+        'createdAt': FieldValue.serverTimestamp(),
+        'elderId': elderDoc.id,
+        'familiarId': normalizedFamilyUid,
+        'institutionId': elderInstitutionId,
+        'receiveNotifications': receiveNotifications,
+        'status': 'pending',
+      });
+    }
+
+    return {'id': elderDoc.id, 'linkStatus': 'pending', ...elderData};
+  }
+
+  /// O familiar tem alguma solicitação aguardando resposta do idoso?
+  Future<bool> hasPendingLinkForFamily(String familyUid) async {
+    final pending = await _firestore
+        .collection('familyLinks')
+        .where('familiarId', isEqualTo: familyUid)
+        .where('status', isEqualTo: 'pending')
+        .limit(1)
+        .get();
+
+    return pending.docs.isNotEmpty;
+  }
+
+  /// O idoso aceita ou recusa o pedido de vínculo de um familiar.
+  Future<void> respondToFamilyLinkRequest({
+    required String linkId,
+    required bool accept,
+  }) {
+    return _firestore.collection('familyLinks').doc(linkId).update({
+      'status': accept ? 'active' : 'rejected',
+    });
+  }
+
+  Future<void> unlinkFamilyRelationship(String linkId) {
+    final normalizedLinkId = linkId.trim();
+    if (normalizedLinkId.isEmpty) {
+      throw ArgumentError('O vínculo não foi identificado.');
+    }
+
+    return _firestore.collection('familyLinks').doc(normalizedLinkId).delete();
+  }
+
+  /// Confirma a senha de quem está logado (usada para mostrar o código do
+  /// idoso). Não altera a sessão.
+  /// Envia o link de redefinição de senha (familiar e cuidador).
+  /// Não revela se o e-mail existe ou não.
+  Future<void> sendPasswordResetEmail(String email) async {
+    final normalizedEmail = email.trim();
+
+    if (normalizedEmail.isEmpty) {
+      throw Exception('Informe o e-mail.');
+    }
+
+    try {
+      await _auth.sendPasswordResetEmail(email: normalizedEmail);
+    } on FirebaseAuthException catch (error) {
+      if (error.code == 'user-not-found') return;
+      rethrow;
+    }
+  }
+
+  Future<void> verifyCurrentPassword(String password) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+
+    if (user == null || email == null || email.isEmpty) {
+      throw Exception('Usuário não autenticado.');
+    }
+
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: password),
+      );
+    } on FirebaseAuthException catch (error) {
+      switch (error.code) {
+        case 'wrong-password':
+        case 'invalid-credential':
+        case 'invalid-login-credentials':
+          throw Exception('Senha incorreta.');
+        case 'too-many-requests':
+          throw Exception(
+            'Muitas tentativas. Tente novamente em alguns minutos.',
+          );
+        default:
+          throw Exception('Não foi possível confirmar a senha.');
+      }
+    }
   }
 
   Future<void> signOut() async {
@@ -459,6 +719,8 @@ class AuthService {
   Future<void> updateCurrentUserProfile({
     required String name,
     required String phone,
+    String? jobTitle,
+    String? workShift,
   }) async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -479,6 +741,8 @@ class AuthService {
     await _firestore.collection('users').doc(user.uid).update({
       'name': normalizedName,
       'phone': normalizedPhone,
+      if (jobTitle != null) 'jobTitle': jobTitle.trim(),
+      if (workShift != null) 'workShift': workShift.trim(),
     });
 
     try {

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/utils/first_two_names.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/route_names.dart';
@@ -344,26 +345,16 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
         child: Column(
           children: [
             PageHeaderWidget(
-              title: conversation.participantName,
+              title: firstTwoNames(conversation.participantName),
+              titleStyle: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colorScheme.onPrimary),
               titleLeading: ChatAvatarWidget(
                 participantType: conversation.participantType,
                 photoUrl: conversation.photoUrl,
                 size: sizes.buttonSmall,
               ),
               onBackPressed: () => context.go(RouteNames.chat),
-              trailing: IconButton(
-                tooltip: 'Ligar',
-                onPressed: () {
-                  _showUnavailable(
-                    'As chamadas serão disponibilizadas em breve.',
-                  );
-                },
-                icon: Icon(
-                  Icons.call_rounded,
-                  color: colorScheme.onPrimary,
-                  size: sizes.icon(sizes.lg),
-                ),
-              ),
             ),
             Expanded(
               child: ContentPanelWidget(
@@ -376,7 +367,7 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                       child: Text(
                         _dateLabel(),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),

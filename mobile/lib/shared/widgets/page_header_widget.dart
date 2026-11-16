@@ -8,12 +8,14 @@ class PageHeaderWidget extends StatelessWidget {
     super.key,
     required this.title,
     required this.onBackPressed,
+    this.titleStyle,
     this.trailing,
     this.titleLeading,
   });
 
   final String title;
   final VoidCallback onBackPressed;
+  final TextStyle? titleStyle;
   final Widget? trailing;
   final Widget? titleLeading;
 
@@ -24,12 +26,7 @@ class PageHeaderWidget extends StatelessWidget {
     final sizes = context.appSizes;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        sizes.lg,
-        sizes.md,
-        sizes.lg,
-        sizes.md,
-      ),
+      padding: EdgeInsets.fromLTRB(sizes.lg, sizes.md, sizes.lg, sizes.md),
       child: SizedBox(
         height: sizes.buttonMedium,
         child: Stack(
@@ -54,9 +51,11 @@ class PageHeaderWidget extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: colorScheme.onPrimary,
-                        ),
+                        style:
+                            titleStyle ??
+                            theme.textTheme.bodyLarge?.copyWith(
+                              color: colorScheme.onPrimary,
+                            ),
                       ),
                     ),
                   ],
@@ -71,10 +70,7 @@ class PageHeaderWidget extends StatelessWidget {
               ),
             ),
             if (trailing != null)
-              Align(
-                alignment: Alignment.centerRight,
-                child: trailing,
-              ),
+              Align(alignment: Alignment.centerRight, child: trailing),
           ],
         ),
       ),

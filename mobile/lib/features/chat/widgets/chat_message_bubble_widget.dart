@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../models/chat_message.dart';
 import '../models/conversation_preview.dart';
+import '../utils/chat_timestamp_formatter.dart';
 import 'chat_avatar_widget.dart';
 
 class ChatMessageBubbleWidget extends StatelessWidget {
@@ -49,7 +50,7 @@ class ChatMessageBubbleWidget extends StatelessWidget {
               ChatAvatarWidget(
                 participantType: participantType,
                 photoUrl: participantPhotoUrl,
-                size: sizes.lg,
+                size: sizes.icon(sizes.lg),
               ),
               SizedBox(width: sizes.sm),
             ],
@@ -76,6 +77,33 @@ class ChatMessageBubbleWidget extends StatelessWidget {
   }
 
   Widget _messageContent(BuildContext context, Color textColor) {
+    final content = _messageBody(context, textColor);
+    final theme = Theme.of(context);
+    final sizes = context.appSizes;
+
+    return IntrinsicWidth(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          content,
+          SizedBox(height: sizes.xs),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              chatMessageTimestampLabel(message.sentAt),
+              key: ValueKey('chat-message-timestamp-${message.id}'),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: textColor.withValues(alpha: .78),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _messageBody(BuildContext context, Color textColor) {
     if (message.type == ChatMessageType.image && message.mediaUrl != null) {
       try {
         return GestureDetector(

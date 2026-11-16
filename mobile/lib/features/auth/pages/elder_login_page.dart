@@ -158,7 +158,20 @@ class _ElderLoginPageState extends ConsumerState<ElderLoginPage> {
                 onFieldSubmitted: (_) => _login(),
               ),
 
-              SizedBox(height: sizes.xl),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _isLoading
+                      ? null
+                      : () => context.go(
+                          RouteNames.forgotPassword,
+                          extra: widget.arguments,
+                        ),
+                  child: const Text('Esqueci minha senha'),
+                ),
+              ),
+
+              SizedBox(height: sizes.lg),
 
               ButtonWidget(
                 label: _isLoading ? 'Entrando...' : 'Entrar',

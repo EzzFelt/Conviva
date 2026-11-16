@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../auth/models/account_type.dart';
 import '../../auth/models/user_session.dart';
 import '../../auth/providers/current_user_provider.dart';
+import '../../../core/utils/family_link_id.dart';
 import '../models/chat_message.dart';
 import '../models/conversation_preview.dart';
 
@@ -80,7 +82,38 @@ final conversationPreviewProvider =
           .doc(conversationId)
           .get();
       if (document.exists) {
-        return _conversationFromDocument(document, session.uid);
+        final chatData = document.data()!;
+        final preview = _conversationFromDocument(document, session.uid);
+        if (chatData['institutionId'] != session.institutionId ||
+            preview.participantId.isEmpty) {
+          return null;
+        }
+
+        final participant = await firestore
+            .collection('users')
+            .doc(preview.participantId)
+            .get();
+        final participantData = participant.data();
+        if (participantData == null ||
+            !await _canChatWith(
+              session,
+              preview.participantId,
+              participantData,
+            )) {
+          return null;
+        }
+
+        final contact = _contactFromDocument(participant);
+        return ConversationPreview(
+          id: preview.id,
+          participantId: contact.uid,
+          participantName: contact.name,
+          lastMessage: preview.lastMessage,
+          participantType: contact.type,
+          photoUrl: contact.photoUrl ?? preview.photoUrl,
+          lastMessageAt: preview.lastMessageAt,
+          unreadCount: preview.unreadCount,
+        );
       }
 
       final participantIds = conversationId.split('_');
@@ -95,7 +128,11 @@ final conversationPreviewProvider =
           .collection('users')
           .doc(participantId)
           .get();
-      if (!participant.exists) return null;
+      final participantData = participant.data();
+      if (participantData == null ||
+          !await _canChatWith(session, participantId, participantData)) {
+        return null;
+      }
 
       final contact = _contactFromDocument(participant);
       return ConversationPreview(
@@ -112,18 +149,60 @@ Stream<List<ConversationPreview>> getChatsStream({
   required String currentUserId,
   required String institutionId,
 }) {
+  final participantPhotoCache = <String, String?>{};
+
   return FirebaseFirestore.instance
       .collection('chats')
       .where('participants', arrayContains: currentUserId)
       .where('institutionId', isEqualTo: institutionId)
       .orderBy('lastMessageAt', descending: true)
       .snapshots()
-      .map(
-        (snapshot) => [
+      .asyncMap((snapshot) async {
+        final conversations = [
           for (final document in snapshot.docs)
             _conversationFromDocument(document, currentUserId),
-        ],
-      );
+        ];
+        final participantIdsWithoutPhoto = conversations
+            .where(
+              (conversation) =>
+                  conversation.photoUrl?.trim().isNotEmpty != true &&
+                  conversation.participantId.isNotEmpty &&
+                  !participantPhotoCache.containsKey(
+                    conversation.participantId,
+                  ),
+            )
+            .map((conversation) => conversation.participantId)
+            .toSet();
+
+        await Future.wait(
+          participantIdsWithoutPhoto.map((participantId) async {
+            final participant = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(participantId)
+                .get();
+            participantPhotoCache[participantId] = participant
+                .data()?['photoUrl']
+                ?.toString();
+          }),
+        );
+
+        return [
+          for (final conversation in conversations)
+            if (conversation.photoUrl?.trim().isNotEmpty == true)
+              conversation
+            else
+              ConversationPreview(
+                id: conversation.id,
+                participantId: conversation.participantId,
+                participantName: conversation.participantName,
+                lastMessage: conversation.lastMessage,
+                participantType: conversation.participantType,
+                photoUrl: participantPhotoCache[conversation.participantId],
+                lastMessageAt: conversation.lastMessageAt,
+                unreadCount: conversation.unreadCount,
+              ),
+        ];
+      });
 }
 
 Stream<List<InstitutionContact>> getInstitutionContactsStream({
@@ -137,9 +216,62 @@ Stream<List<InstitutionContact>> getInstitutionContactsStream({
       .map(
         (snapshot) => [
           for (final document in snapshot.docs)
-            if (document.id != currentUserId) _contactFromDocument(document),
+            if (document.id != currentUserId &&
+                document.data()['status']?.toString() == 'active')
+              _contactFromDocument(document),
         ],
       );
+}
+
+Future<bool> _canChatWith(
+  UserSession currentUser,
+  String recipientId,
+  Map<String, dynamic> recipientData,
+) async {
+  if (recipientData['status']?.toString() != 'active' ||
+      recipientData['institutionId']?.toString() != currentUser.institutionId) {
+    return false;
+  }
+
+  final recipientType = recipientData['type']?.toString();
+  switch (currentUser.accountType) {
+    case AccountType.caregiver:
+      return recipientType == 'idoso' || recipientType == 'caregiver';
+    case AccountType.family:
+      return recipientType == 'idoso' &&
+          await _hasActiveFamilyLink(
+            elderId: recipientId,
+            familyId: currentUser.uid,
+            institutionId: currentUser.institutionId,
+          );
+    case AccountType.elder:
+      if (recipientType == 'caregiver') return true;
+      return recipientType == 'family' &&
+          await _hasActiveFamilyLink(
+            elderId: currentUser.uid,
+            familyId: recipientId,
+            institutionId: currentUser.institutionId,
+          );
+  }
+}
+
+Future<bool> _hasActiveFamilyLink({
+  required String elderId,
+  required String familyId,
+  required String institutionId,
+}) async {
+  final linkId = FamilyLinkId.forUsers(elderId: elderId, familyId: familyId);
+  final link = await FirebaseFirestore.instance
+      .collection('familyLinks')
+      .doc(linkId)
+      .get();
+  final data = link.data();
+
+  return link.exists &&
+      data?['status']?.toString() == 'active' &&
+      data?['elderId']?.toString() == elderId &&
+      data?['familiarId']?.toString() == familyId &&
+      data?['institutionId']?.toString() == institutionId;
 }
 
 Future<String> getOrCreateChat({
@@ -153,17 +285,20 @@ Future<String> getOrCreateChat({
   final ids = [currentUser.uid, recipientId]..sort();
   final chatId = '${ids[0]}_${ids[1]}';
   final reference = FirebaseFirestore.instance.collection('chats').doc(chatId);
-  final existing = await reference.get();
-  if (existing.exists) return chatId;
-
   final recipient = await FirebaseFirestore.instance
       .collection('users')
       .doc(recipientId)
       .get();
   final recipientData = recipient.data();
-  if (!recipient.exists || recipientData == null) {
+  if (recipientData == null) {
     throw StateError('Destinatário não encontrado.');
   }
+  if (!await _canChatWith(currentUser, recipientId, recipientData)) {
+    throw StateError('Não há permissão para conversar com este contato.');
+  }
+
+  final existing = await reference.get();
+  if (existing.exists) return chatId;
 
   await reference.set({
     'chatId': chatId,
@@ -265,6 +400,7 @@ ConversationPreview _conversationFromDocument(
     participantName: participantData['name']?.toString() ?? 'Contato',
     lastMessage: data['lastMessage']?.toString() ?? '',
     participantType: _participantType(participantData['type']?.toString()),
+    photoUrl: participantData['photoUrl']?.toString(),
     lastMessageAt: (data['lastMessageAt'] as Timestamp?)?.toDate(),
     unreadCount:
         ((data['unreadCount'] as Map?)?[currentUserId] as num?)?.toInt() ?? 0,

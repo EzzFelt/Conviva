@@ -1,762 +1,816 @@
 
-    rules_version = '2';
+      rules_version = '2';
 
-    service cloud.firestore {
-      match /databases/{database}/documents {
+      service cloud.firestore {
+        match /databases/{database}/documents {
 
-        function signedIn() {
-          return request.auth != null;
-        }
-
-        function isOwner(userId) {
-          return signedIn() && request.auth.uid == userId;
-        }
-
-        function currentUser() {
-          return get(
-            /databases/$(database)/documents/users/$(request.auth.uid)
-          ).data;
-        }
-
-        function isActiveUser() {
-          return signedIn() && currentUser().status == 'active';
-        }
-
-        function isSameInstitution(institutionId) {
-          return isActiveUser() &&
-            currentUser().institutionId == institutionId;
-        }
-
-        function isActiveElder(elderId) {
-          return exists(
-            /databases/$(database)/documents/users/$(elderId)
-          ) &&
-            get(
-              /databases/$(database)/documents/users/$(elderId)
-            ).data.type == 'idoso' &&
-            get(
-              /databases/$(database)/documents/users/$(elderId)
-            ).data.status == 'active';
-        }
-
-        function familyLinkId(elderId, familyId) {
-          return elderId + '_' + familyId;
-        }
-
-        function hasActiveFamilyLink(elderId) {
-          let linkId = familyLinkId(elderId, request.auth.uid);
-
-          return exists(
-            /databases/$(database)/documents/familyLinks/$(linkId)
-          ) &&
-            get(
-              /databases/$(database)/documents/familyLinks/$(linkId)
-            ).data.status == 'active' &&
-            get(
-              /databases/$(database)/documents/familyLinks/$(linkId)
-            ).data.elderId == elderId &&
-            get(
-              /databases/$(database)/documents/familyLinks/$(linkId)
-            ).data.familiarId == request.auth.uid;
-        }
-
-        function canAccessElder(elderId) {
-          return isActiveUser() &&
-            isActiveElder(elderId) &&
-            get(
-              /databases/$(database)/documents/users/$(elderId)
-            ).data.institutionId == currentUser().institutionId &&
-            (
-              (currentUser().type == 'idoso' && request.auth.uid == elderId) ||
-              currentUser().type == 'caregiver' ||
-              (currentUser().type == 'family' && hasActiveFamilyLink(elderId))
-            );
-        }
-
-        // --------------------------------------------------
-        // INSTITUTIONS
-        // --------------------------------------------------
-
-        match /institutions/{institutionId} {
-          allow read: if true;
-          allow write: if false;
-        }
-
-        // --------------------------------------------------
-        // USERS
-        // --------------------------------------------------
-
-        match /users/{userId} {
-
-          allow create: if isOwner(userId) && (
-            (
-              request.resource.data.type == 'idoso' &&
-              request.resource.data.name is string &&
-              request.resource.data.phone is string &&
-              request.resource.data.elderLinkCode is string &&
-              request.resource.data.institutionId is string &&
-              request.resource.data.status == 'active' &&
-              request.resource.data.createdAt is timestamp
-            ) || (
-              request.resource.data.type in ['family', 'caregiver'] &&
-              request.resource.data.name is string &&
-              request.resource.data.email is string &&
-              request.resource.data.phone is string &&
-              request.resource.data.institutionId is string &&
-              request.resource.data.status == 'active' &&
-              request.resource.data.createdAt is timestamp
-            )
-          );
-
-          allow get: if isOwner(userId) ||
-            isSameInstitution(resource.data.institutionId);
-
-          allow list: if isSameInstitution(resource.data.institutionId);
-
-          allow update: if isOwner(userId) &&
-            request.resource.data
-              .diff(resource.data)
-              .affectedKeys()
-              .hasOnly(['name', 'phone', 'email', 'photoUrl']) &&
-            (
-              !('photoUrl' in request.resource.data) ||
-              request.resource.data.photoUrl is string &&
-              request.resource.data.photoUrl.size() < 300000
-            );
-
-          allow delete: if isOwner(userId);
-
-          // --------------------------------------------------
-          // USER PREFERENCES
-          // --------------------------------------------------
-
-          match /preferences/{preferenceId} {
-
-            function validPreferenceData() {
-              return request.resource.data.keys().hasAll([
-                  'primaryColor',
-                  'gradientTop',
-                  'gradientBottom',
-                  'fontScale',
-                  'titleFontWeight',
-                  'bodyFontWeight',
-                  'iconScale',
-                  'buttonScale',
-                  'spacingScale',
-                  'messageNotifications',
-                  'reminderNotifications',
-                  'colorIntensity'
-                ]) &&
-                request.resource.data.keys().hasOnly([
-                  'primaryColor',
-                  'gradientTop',
-                  'gradientBottom',
-                  'fontScale',
-                  'titleFontWeight',
-                  'bodyFontWeight',
-                  'iconScale',
-                  'buttonScale',
-                  'spacingScale',
-                  'messageNotifications',
-                  'reminderNotifications',
-                  'colorIntensity'
-                ]) &&
-                request.resource.data.primaryColor is number &&
-                request.resource.data.gradientTop is number &&
-                request.resource.data.gradientBottom is number &&
-                request.resource.data.fontScale is number &&
-                request.resource.data.fontScale >= 0.85 &&
-                request.resource.data.fontScale <= 1.40 &&
-                request.resource.data.titleFontWeight in
-                  [100, 200, 300, 400, 500, 600, 700, 800, 900] &&
-                request.resource.data.bodyFontWeight in
-                  [100, 200, 300, 400, 500, 600, 700, 800, 900] &&
-                request.resource.data.iconScale is number &&
-                request.resource.data.iconScale >= 0.85 &&
-                request.resource.data.iconScale <= 1.40 &&
-                request.resource.data.buttonScale is number &&
-                request.resource.data.buttonScale >= 0.90 &&
-                request.resource.data.buttonScale <= 1.30 &&
-                request.resource.data.spacingScale is number &&
-                request.resource.data.spacingScale >= 0.90 &&
-                request.resource.data.spacingScale <= 1.20 &&
-                request.resource.data.messageNotifications is bool &&
-                request.resource.data.reminderNotifications is bool &&
-                request.resource.data.colorIntensity is number &&
-                request.resource.data.colorIntensity >= 0.5 &&
-                request.resource.data.colorIntensity <= 1.0;
-            }
-
-            allow read: if isOwner(userId) && isActiveUser();
-
-            allow create, update: if isOwner(userId) &&
-              isActiveUser() &&
-              preferenceId == 'appSettings' &&
-              validPreferenceData();
-
-            allow delete: if false;
+          function signedIn() {
+            return request.auth != null;
           }
 
-          match /devices/{deviceId} {
-            function validDeviceData() {
-              return request.resource.data.keys().hasOnly([
-                  'token',
-                  'platform',
-                  'updatedAt'
-                ]) &&
-                request.resource.data.token is string &&
-                request.resource.data.token.size() > 0 &&
-                request.resource.data.token.size() <= 4096 &&
-                request.resource.data.token == deviceId &&
-                request.resource.data.platform == 'android' &&
-                request.resource.data.updatedAt is timestamp;
-            }
-
-            allow read: if isOwner(userId) && isActiveUser();
-
-            allow create, update: if isOwner(userId) &&
-              isActiveUser() &&
-              validDeviceData();
-
-            allow delete: if isOwner(userId) && isActiveUser();
+          function isOwner(userId) {
+            return signedIn() && request.auth.uid == userId;
           }
 
-          match /notifications/{notificationId} {
-            allow read: if isOwner(userId) && isActiveUser();
+          function currentUser() {
+            return get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data;
+          }
 
-            function validNotificationBase() {
-              return request.resource.data.title is string &&
-                request.resource.data.title.size() <= 120 &&
-                request.resource.data.body is string &&
-                request.resource.data.body.size() <= 120 &&
-                request.resource.data.read == false &&
-                request.resource.data.createdAt is timestamp;
-            }
+          function isActiveUser() {
+            return signedIn() && currentUser().status == 'active';
+          }
 
-            function validMessageNotification() {
-              return request.resource.data.type == 'message' &&
-                request.resource.data.keys().hasOnly([
-                  'type',
-                  'title',
-                  'body',
-                  'chatId',
-                  'read',
-                  'createdAt'
-                ]) &&
-                request.resource.data.keys().hasAll([
-                  'type',
-                  'title',
-                  'body',
-                  'chatId',
-                  'read',
-                  'createdAt'
-                ]) &&
-                request.resource.data.chatId is string &&
-                get(
-                  /databases/$(database)/documents/chats/$(request.resource.data.chatId)
-                ).data.participants.hasAny([request.auth.uid]);
-            }
+          function isSameInstitution(institutionId) {
+            return isActiveUser() &&
+              currentUser().institutionId == institutionId;
+          }
 
-            // Lembrete de tarefa gerado pelo próprio app do usuário
-            // quando chega o horário da tarefa.
-            function validTaskNotification() {
-              return request.resource.data.type == 'task' &&
-                request.resource.data.keys().hasOnly([
-                  'type',
-                  'title',
-                  'body',
-                  'elderId',
-                  'read',
-                  'createdAt'
-                ]) &&
-                request.resource.data.keys().hasAll([
-                  'type',
-                  'title',
-                  'body',
-                  'elderId',
-                  'read',
-                  'createdAt'
-                ]) &&
-                request.resource.data.elderId is string &&
-                canAccessElder(request.resource.data.elderId);
-            }
+          function isActiveElder(elderId) {
+            return exists(
+              /databases/$(database)/documents/users/$(elderId)
+            ) &&
+              get(
+                /databases/$(database)/documents/users/$(elderId)
+              ).data.type == 'idoso' &&
+              get(
+                /databases/$(database)/documents/users/$(elderId)
+              ).data.status == 'active';
+          }
 
-            allow create: if isOwner(userId) &&
-              isActiveUser() &&
-              validNotificationBase() &&
-              (validMessageNotification() || validTaskNotification());
+          function familyLinkId(elderId, familyId) {
+            return elderId + '_' + familyId;
+          }
+
+          function hasActiveFamilyLink(elderId) {
+            let linkId = familyLinkId(elderId, request.auth.uid);
+
+            return exists(
+              /databases/$(database)/documents/familyLinks/$(linkId)
+            ) &&
+              get(
+                /databases/$(database)/documents/familyLinks/$(linkId)
+              ).data.status == 'active' &&
+              get(
+                /databases/$(database)/documents/familyLinks/$(linkId)
+              ).data.elderId == elderId &&
+              get(
+                /databases/$(database)/documents/familyLinks/$(linkId)
+              ).data.familiarId == request.auth.uid;
+          }
+
+          function canAccessElder(elderId) {
+            return isActiveUser() &&
+              isActiveElder(elderId) &&
+              get(
+                /databases/$(database)/documents/users/$(elderId)
+              ).data.institutionId == currentUser().institutionId &&
+              (
+                (currentUser().type == 'idoso' && request.auth.uid == elderId) ||
+                currentUser().type == 'caregiver' ||
+                (currentUser().type == 'family' && hasActiveFamilyLink(elderId))
+              );
+          }
+
+          // --------------------------------------------------
+          // INSTITUTIONS
+          // --------------------------------------------------
+
+          match /institutions/{institutionId} {
+            allow read: if true;
+            allow write: if false;
+          }
+
+          // --------------------------------------------------
+          // USERS
+          // --------------------------------------------------
+
+          match /users/{userId} {
+
+            allow create: if isOwner(userId) && (
+              (
+                request.resource.data.type == 'idoso' &&
+                request.resource.data.name is string &&
+                request.resource.data.phone is string &&
+                request.resource.data.elderLinkCode is string &&
+                request.resource.data.institutionId is string &&
+                request.resource.data.status == 'active' &&
+                request.resource.data.createdAt is timestamp
+              ) || (
+                request.resource.data.type in ['family', 'caregiver'] &&
+                request.auth.token.email_verified == true &&
+                request.resource.data.name is string &&
+                request.resource.data.email is string &&
+                request.resource.data.phone is string &&
+                request.resource.data.institutionId is string &&
+                request.resource.data.status == 'active' &&
+                request.resource.data.createdAt is timestamp
+              )
+            );
+
+            allow get: if isOwner(userId) ||
+              isSameInstitution(resource.data.institutionId);
+
+            allow list: if isSameInstitution(resource.data.institutionId);
 
             allow update: if isOwner(userId) &&
-              isActiveUser() &&
               request.resource.data
                 .diff(resource.data)
                 .affectedKeys()
-                .hasOnly(['read']) &&
-              request.resource.data.read == true;
+                .hasOnly([
+                  'name',
+                  'phone',
+                  'email',
+                  'photoUrl',
+                  'jobTitle',
+                  'workShift'
+                ]) &&
+              (
+                !('jobTitle' in request.resource.data) ||
+                (
+                  request.resource.data.jobTitle is string &&
+                  request.resource.data.jobTitle.size() <= 100
+                )
+              ) &&
+              (
+                !('workShift' in request.resource.data) ||
+                (
+                  request.resource.data.workShift is string &&
+                  request.resource.data.workShift.size() <= 100
+                )
+              ) &&
+              (
+                !('photoUrl' in request.resource.data) ||
+                (
+                  request.resource.data.photoUrl is string &&
+                  request.resource.data.photoUrl.size() < 300000
+                )
+              );
 
-            allow create, delete: if false;
-          }
-        }
+            allow delete: if isOwner(userId);
 
-        // --------------------------------------------------
-        // CHATS
-        // --------------------------------------------------
+            // --------------------------------------------------
+            // USER PREFERENCES
+            // --------------------------------------------------
 
-        match /chats/{chatId} {
+            match /preferences/{preferenceId} {
 
-          function isChatParticipant() {
-            return isActiveUser() &&
-              resource.data.participants.hasAny([request.auth.uid]) &&
-              resource.data.institutionId == currentUser().institutionId;
-          }
+              function validPreferenceData() {
+                return request.resource.data.keys().hasAll([
+                    'primaryColor',
+                    'gradientTop',
+                    'gradientBottom',
+                    'fontScale',
+                    'titleFontWeight',
+                    'bodyFontWeight',
+                    'iconScale',
+                    'buttonScale',
+                    'spacingScale',
+                    'messageNotifications',
+                    'reminderNotifications',
+                    'colorIntensity'
+                  ]) &&
+                  request.resource.data.keys().hasOnly([
+                    'primaryColor',
+                    'gradientTop',
+                    'gradientBottom',
+                    'fontScale',
+                    'titleFontWeight',
+                    'bodyFontWeight',
+                    'iconScale',
+                    'buttonScale',
+                    'spacingScale',
+                    'messageNotifications',
+                    'reminderNotifications',
+                    'colorIntensity'
+                  ]) &&
+                  request.resource.data.primaryColor is number &&
+                  request.resource.data.gradientTop is number &&
+                  request.resource.data.gradientBottom is number &&
+                  request.resource.data.fontScale is number &&
+                  request.resource.data.fontScale >= 0.85 &&
+                  request.resource.data.fontScale <= 1.40 &&
+                  request.resource.data.titleFontWeight in
+                    [100, 200, 300, 400, 500, 600, 700, 800, 900] &&
+                  request.resource.data.bodyFontWeight in
+                    [100, 200, 300, 400, 500, 600, 700, 800, 900] &&
+                  request.resource.data.iconScale is number &&
+                  request.resource.data.iconScale >= 0.85 &&
+                  request.resource.data.iconScale <= 1.40 &&
+                  request.resource.data.buttonScale is number &&
+                  request.resource.data.buttonScale >= 0.90 &&
+                  request.resource.data.buttonScale <= 1.30 &&
+                  request.resource.data.spacingScale is number &&
+                  request.resource.data.spacingScale >= 0.90 &&
+                  request.resource.data.spacingScale <= 1.20 &&
+                  request.resource.data.messageNotifications is bool &&
+                  request.resource.data.reminderNotifications is bool &&
+                  request.resource.data.colorIntensity is number &&
+                  request.resource.data.colorIntensity >= 0.5 &&
+                  request.resource.data.colorIntensity <= 1.0;
+              }
 
-          function isChatParticipantOnCreate() {
-            return isActiveUser() &&
-              request.resource.data.participants.hasAny([request.auth.uid]) &&
-              request.resource.data.institutionId == currentUser().institutionId;
-          }
+              allow read: if isOwner(userId) && isActiveUser();
 
-          allow get: if !exists(
-            /databases/$(database)/documents/chats/$(chatId)
-          ) || isChatParticipant();
+              allow create, update: if isOwner(userId) &&
+                isActiveUser() &&
+                preferenceId == 'appSettings' &&
+                validPreferenceData();
 
-          allow list: if isChatParticipant();
-
-          allow create: if isChatParticipantOnCreate() &&
-            request.resource.data.chatId == chatId &&
-            request.resource.data.participants.size() == 2 &&
-            request.resource.data.participantsData is map &&
-            request.resource.data.unreadCount is map;
-
-          allow update: if isChatParticipant() &&
-            request.resource.data.participants == resource.data.participants &&
-            request.resource.data.institutionId == resource.data.institutionId;
-
-          allow delete: if false;
-
-          // --------------------------------------------------
-          // CHAT MESSAGES
-          // --------------------------------------------------
-
-          match /messages/{messageId} {
-
-            function isParentChatParticipant() {
-              return isActiveUser() &&
-                get(
-                  /databases/$(database)/documents/chats/$(chatId)
-                ).data.participants.hasAny([request.auth.uid]) &&
-                get(
-                  /databases/$(database)/documents/chats/$(chatId)
-                ).data.institutionId == currentUser().institutionId;
+              allow delete: if false;
             }
 
-            allow get, list: if !exists(
+            match /devices/{deviceId} {
+              function validDeviceData() {
+                return request.resource.data.keys().hasOnly([
+                    'token',
+                    'platform',
+                    'updatedAt'
+                  ]) &&
+                  request.resource.data.token is string &&
+                  request.resource.data.token.size() > 0 &&
+                  request.resource.data.token.size() <= 4096 &&
+                  request.resource.data.token == deviceId &&
+                  request.resource.data.platform == 'android' &&
+                  request.resource.data.updatedAt is timestamp;
+              }
+
+              allow read: if isOwner(userId) && isActiveUser();
+
+              allow create, update: if isOwner(userId) &&
+                isActiveUser() &&
+                validDeviceData();
+
+              allow delete: if isOwner(userId) && isActiveUser();
+            }
+
+            match /notifications/{notificationId} {
+              allow read: if isOwner(userId) && isActiveUser();
+
+              function validNotificationBase() {
+                return request.resource.data.title is string &&
+                  request.resource.data.title.size() <= 120 &&
+                  request.resource.data.body is string &&
+                  request.resource.data.body.size() <= 120 &&
+                  request.resource.data.read == false &&
+                  request.resource.data.createdAt is timestamp;
+              }
+
+              function validMessageNotification() {
+                return request.resource.data.type == 'message' &&
+                  request.resource.data.keys().hasOnly([
+                    'type',
+                    'title',
+                    'body',
+                    'chatId',
+                    'read',
+                    'createdAt'
+                  ]) &&
+                  request.resource.data.keys().hasAll([
+                    'type',
+                    'title',
+                    'body',
+                    'chatId',
+                    'read',
+                    'createdAt'
+                  ]) &&
+                  request.resource.data.chatId is string &&
+                  get(
+                    /databases/$(database)/documents/chats/$(request.resource.data.chatId)
+                  ).data.participants.hasAny([request.auth.uid]);
+              }
+
+              // Lembrete de tarefa gerado pelo próprio app do usuário
+              // quando chega o horário da tarefa.
+              function validTaskNotification() {
+                return request.resource.data.type == 'task' &&
+                  request.resource.data.keys().hasOnly([
+                    'type',
+                    'title',
+                    'body',
+                    'elderId',
+                    'read',
+                    'createdAt'
+                  ]) &&
+                  request.resource.data.keys().hasAll([
+                    'type',
+                    'title',
+                    'body',
+                    'elderId',
+                    'read',
+                    'createdAt'
+                  ]) &&
+                  request.resource.data.elderId is string &&
+                  canAccessElder(request.resource.data.elderId);
+              }
+
+              allow create: if isOwner(userId) &&
+                isActiveUser() &&
+                validNotificationBase() &&
+                (validMessageNotification() || validTaskNotification());
+
+              allow update: if isOwner(userId) &&
+                isActiveUser() &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly(['read']) &&
+                request.resource.data.read == true;
+
+              allow create, delete: if false;
+            }
+          }
+
+          // --------------------------------------------------
+          // CHATS
+          // --------------------------------------------------
+
+          match /chats/{chatId} {
+
+            function isChatParticipant() {
+              return isActiveUser() &&
+                resource.data.participants.hasAny([request.auth.uid]) &&
+                resource.data.institutionId == currentUser().institutionId;
+            }
+
+            function isChatParticipantOnCreate() {
+              return isActiveUser() &&
+                request.resource.data.participants.hasAny([request.auth.uid]) &&
+                request.resource.data.institutionId == currentUser().institutionId;
+            }
+
+            allow get: if !exists(
               /databases/$(database)/documents/chats/$(chatId)
-            ) || isParentChatParticipant();
+            ) || isChatParticipant();
 
-            allow create: if isParentChatParticipant() &&
-              request.resource.data.messageId == messageId &&
-              request.resource.data.senderId == request.auth.uid &&
-              request.resource.data.text is string &&
-              request.resource.data.type in ['text', 'image', 'audio'] &&
-              request.resource.data.readBy is list &&
-              request.resource.data.createdAt is timestamp;
+            allow list: if isChatParticipant();
 
-            allow update: if isParentChatParticipant() &&
-              request.resource.data
-                .diff(resource.data)
-                .affectedKeys()
-                .hasOnly(['readBy']) &&
-              request.resource.data.readBy is list &&
-              request.resource.data.readBy.hasAll(resource.data.readBy) &&
-              request.resource.data.readBy.hasOnly(
-                resource.data.readBy.concat([request.auth.uid])
-              );
+            allow create: if isChatParticipantOnCreate() &&
+              request.resource.data.chatId == chatId &&
+              request.resource.data.participants.size() == 2 &&
+              request.resource.data.participantsData is map &&
+              request.resource.data.unreadCount is map;
+
+            allow update: if isChatParticipant() &&
+              request.resource.data.participants == resource.data.participants &&
+              request.resource.data.institutionId == resource.data.institutionId;
 
             allow delete: if false;
+
+            // --------------------------------------------------
+            // CHAT MESSAGES
+            // --------------------------------------------------
+
+            match /messages/{messageId} {
+
+              function isParentChatParticipant() {
+                return isActiveUser() &&
+                  get(
+                    /databases/$(database)/documents/chats/$(chatId)
+                  ).data.participants.hasAny([request.auth.uid]) &&
+                  get(
+                    /databases/$(database)/documents/chats/$(chatId)
+                  ).data.institutionId == currentUser().institutionId;
+              }
+
+              allow get, list: if !exists(
+                /databases/$(database)/documents/chats/$(chatId)
+              ) || isParentChatParticipant();
+
+              allow create: if isParentChatParticipant() &&
+                request.resource.data.messageId == messageId &&
+                request.resource.data.senderId == request.auth.uid &&
+                request.resource.data.text is string &&
+                request.resource.data.type in ['text', 'image', 'audio'] &&
+                request.resource.data.readBy is list &&
+                request.resource.data.createdAt is timestamp;
+
+              allow update: if isParentChatParticipant() &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly(['readBy']) &&
+                request.resource.data.readBy is list &&
+                request.resource.data.readBy.hasAll(resource.data.readBy) &&
+                request.resource.data.readBy.hasOnly(
+                  resource.data.readBy.concat([request.auth.uid])
+                );
+
+              allow delete: if false;
+            }
           }
-        }
 
-        // --------------------------------------------------
-        // FAMILY LINKS
-        // --------------------------------------------------
+          // --------------------------------------------------
+          // FAMILY LINKS
+          // --------------------------------------------------
 
-        match /familyLinks/{linkId} {
+          match /familyLinks/{linkId} {
 
-          allow create: if isActiveUser() &&
-            currentUser().type == 'family' &&
-            request.resource.data.familiarId == request.auth.uid &&
-            request.resource.data.elderId is string &&
-            request.resource.data.institutionId == currentUser().institutionId &&
-            request.resource.data.status == 'active' &&
-            request.resource.data.createdAt is timestamp &&
-            request.resource.data.receiveNotifications is bool &&
-            linkId == familyLinkId(
-              request.resource.data.elderId,
-              request.auth.uid
-            ) &&
-            isActiveElder(request.resource.data.elderId) &&
-            get(
-              /databases/$(database)/documents/users/$(request.resource.data.elderId)
-            ).data.institutionId == request.resource.data.institutionId;
-
-          allow get: if isActiveUser() &&
-            (
-              !exists(
-                /databases/$(database)/documents/familyLinks/$(linkId)
-              ) ||
-              request.auth.uid == resource.data.familiarId ||
-              request.auth.uid == resource.data.elderId
-            );
-
-          allow list: if isActiveUser() &&
-            (
-              request.auth.uid == resource.data.familiarId ||
-              request.auth.uid == resource.data.elderId
-            );
-
-          allow update: if isActiveUser() &&
-            request.auth.uid == resource.data.familiarId &&
-            linkId == familyLinkId(resource.data.elderId, request.auth.uid) &&
-            request.resource.data.elderId == resource.data.elderId &&
-            request.resource.data.familiarId == resource.data.familiarId &&
-            request.resource.data.institutionId == resource.data.institutionId &&
-            request.resource.data
-              .diff(resource.data)
-              .affectedKeys()
-              .hasOnly(['receiveNotifications', 'status', 'createdAt']);
-
-          allow delete: if isActiveUser() &&
-            request.auth.uid == resource.data.familiarId;
-        }
-
-        // --------------------------------------------------
-        // AURI CHATS
-        // --------------------------------------------------
-
-        match /auriChats/{userId} {
-
-          allow read, write: if signedIn() &&
-            request.auth.uid == userId;
-
-          match /messages/{messageId} {
-            allow read, write: if signedIn() &&
-              request.auth.uid == userId;
-          }
-        }
-
-        // --------------------------------------------------
-        // REPORTS
-        // --------------------------------------------------
-
-        match /reports/{reportId} {
-
-          allow create: if isActiveUser();
-
-          allow read, update, delete: if false;
-        }
-
-        // --------------------------------------------------
-        // ROUTINES
-        // --------------------------------------------------
-
-        match /routines/{elderId} {
-
-          function validRoutineDocument() {
-            return request.resource.data.elderId == elderId &&
+            allow create: if isActiveUser() &&
+              currentUser().type == 'family' &&
+              request.resource.data.familiarId == request.auth.uid &&
+              request.resource.data.elderId is string &&
               request.resource.data.institutionId == currentUser().institutionId &&
-              request.resource.data.canElderCreateTasks is bool &&
-              request.resource.data.canElderEditOwnTasks is bool &&
-              request.resource.data.updatedByUserId == request.auth.uid &&
+              request.resource.data.status == 'pending' &&
               request.resource.data.createdAt is timestamp &&
-              request.resource.data.updatedAt is timestamp;
-          }
+              request.resource.data.receiveNotifications is bool &&
+              linkId == familyLinkId(
+                request.resource.data.elderId,
+                request.auth.uid
+              ) &&
+              isActiveElder(request.resource.data.elderId) &&
+              get(
+                /databases/$(database)/documents/users/$(request.resource.data.elderId)
+              ).data.institutionId == request.resource.data.institutionId;
 
-          function validInitialRoutinePermissions() {
-            return currentUser().type == 'caregiver' ||
+            allow get: if isActiveUser() &&
               (
-                request.resource.data.canElderCreateTasks == true &&
-                request.resource.data.canElderEditOwnTasks == true
+                !exists(
+                  /databases/$(database)/documents/familyLinks/$(linkId)
+                ) ||
+                request.auth.uid == resource.data.familiarId ||
+                request.auth.uid == resource.data.elderId
+              );
+
+            allow list: if isActiveUser() &&
+              (
+                request.auth.uid == resource.data.familiarId ||
+                request.auth.uid == resource.data.elderId
+              );
+
+            allow update: if isActiveUser() && (
+              // Familiar: ajusta notificações ou refaz um pedido recusado.
+              // Nunca pode se ativar sozinho.
+              (
+                request.auth.uid == resource.data.familiarId &&
+                linkId == familyLinkId(resource.data.elderId, request.auth.uid) &&
+                request.resource.data.elderId == resource.data.elderId &&
+                request.resource.data.familiarId == resource.data.familiarId &&
+                request.resource.data.institutionId == resource.data.institutionId &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly(['receiveNotifications', 'status', 'createdAt']) &&
+                (
+                  request.resource.data.status == resource.data.status ||
+                  (
+                    resource.data.status == 'rejected' &&
+                    request.resource.data.status == 'pending'
+                  )
+                )
+              ) ||
+              // Idoso: aceita ou recusa um pedido pendente.
+              (
+                request.auth.uid == resource.data.elderId &&
+                currentUser().type == 'idoso' &&
+                resource.data.status == 'pending' &&
+                request.resource.data.status in ['active', 'rejected'] &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly(['status'])
+              )
+            );
+
+            allow delete: if isActiveUser() &&
+              (
+                request.auth.uid == resource.data.familiarId ||
+                (
+                  request.auth.uid == resource.data.elderId &&
+                  currentUser().type == 'idoso' &&
+                  resource.data.status == 'active'
+                )
               );
           }
 
-          allow read: if canAccessElder(elderId);
-
-          allow create: if canAccessElder(elderId) &&
-            validRoutineDocument() &&
-            validInitialRoutinePermissions();
-
-          allow update: if canAccessElder(elderId) &&
-            currentUser().type == 'caregiver' &&
-            request.resource.data.elderId == resource.data.elderId &&
-            request.resource.data.institutionId == resource.data.institutionId &&
-            request.resource.data.createdAt == resource.data.createdAt &&
-            request.resource.data.updatedByUserId == request.auth.uid &&
-            request.resource.data.updatedAt is timestamp &&
-            request.resource.data
-              .diff(resource.data)
-              .affectedKeys()
-              .hasOnly([
-                'canElderCreateTasks',
-                'canElderEditOwnTasks',
-                'updatedAt',
-                'updatedByUserId'
-              ]);
-
-          allow delete: if false;
-
           // --------------------------------------------------
-          // ROUTINE COMPLETIONS / HISTORY
+          // AURI CHATS
           // --------------------------------------------------
 
-          match /completions/{completionId} {
+          match /auriChats/{userId} {
 
-            function actorRole() {
-              return currentUser().type == 'idoso'
-                ? 'elder'
-                : currentUser().type;
+            allow read, write: if signedIn() &&
+              request.auth.uid == userId;
+
+            match /messages/{messageId} {
+              allow read, write: if signedIn() &&
+                request.auth.uid == userId;
             }
-
-            function twoDigits(value) {
-              return value < 10
-                ? '0' + string(value)
-                : string(value);
-            }
-
-            function validCompletionFields() {
-              return request.resource.data.keys().hasAll([
-                  'taskId',
-                  'elderId',
-                  'institutionId',
-                  'taskTitle',
-                  'taskType',
-                  'occurrenceDate',
-                  'scheduledStartAt',
-                  'scheduledEndAt',
-                  'completedAt',
-                  'completedByUserId',
-                  'completedByRole',
-                  'taskWasRecurring'
-                ]) &&
-                request.resource.data.keys().hasOnly([
-                  'taskId',
-                  'elderId',
-                  'institutionId',
-                  'taskTitle',
-                  'taskType',
-                  'occurrenceDate',
-                  'scheduledStartAt',
-                  'scheduledEndAt',
-                  'completedAt',
-                  'completedByUserId',
-                  'completedByRole',
-                  'taskWasRecurring'
-                ]) &&
-                request.resource.data.taskId is string &&
-                request.resource.data.taskId.size() > 0 &&
-                request.resource.data.elderId == elderId &&
-                request.resource.data.institutionId ==
-                  currentUser().institutionId &&
-                request.resource.data.taskTitle is string &&
-                request.resource.data.taskTitle.size() > 0 &&
-                request.resource.data.taskType in [
-                  'breakfast',
-                  'medication',
-                  'meal',
-                  'exercise',
-                  'leisure',
-                  'appointment',
-                  'hygiene',
-                  'sleep',
-                  'other'
-                ] &&
-                request.resource.data.occurrenceDate is timestamp &&
-                request.resource.data.scheduledStartAt is timestamp &&
-                request.resource.data.scheduledEndAt is timestamp &&
-                request.resource.data.scheduledEndAt >
-                  request.resource.data.scheduledStartAt &&
-                request.resource.data.completedAt == request.time &&
-                request.resource.data.completedByUserId ==
-                  request.auth.uid &&
-                request.resource.data.completedByRole == actorRole() &&
-                request.resource.data.taskWasRecurring is bool;
-            }
-
-            function validCompletionId() {
-              let data = request.resource.data;
-              let occurrence = data.occurrenceDate;
-
-              return data.taskWasRecurring
-                ? completionId ==
-                    data.taskId + '_' +
-                    string(occurrence.year()) +
-                    twoDigits(occurrence.month()) +
-                    twoDigits(occurrence.day())
-                : completionId == data.taskId;
-            }
-
-            function taskMatchesCompletion() {
-              let taskPath =
-                /databases/$(database)/documents/routines/$(elderId)/tasks/$(request.resource.data.taskId);
-
-              return exists(taskPath) &&
-                get(taskPath).data.taskId ==
-                  request.resource.data.taskId &&
-                get(taskPath).data.elderId == elderId &&
-                get(taskPath).data.institutionId ==
-                  request.resource.data.institutionId &&
-                get(taskPath).data.title ==
-                  request.resource.data.taskTitle &&
-                get(taskPath).data.type ==
-                  request.resource.data.taskType &&
-                get(taskPath).data.repeatWeekly ==
-                  request.resource.data.taskWasRecurring;
-            }
-
-            function validCompletionOccurrence() {
-              let taskPath =
-                /databases/$(database)/documents/routines/$(elderId)/tasks/$(request.resource.data.taskId);
-
-              let taskData = get(taskPath).data;
-              let data = request.resource.data;
-
-              return data.occurrenceDate >=
-                  taskData.startAt - duration.value(1, 'd') &&
-                data.scheduledStartAt.time() == taskData.startAt.time() &&
-                data.scheduledEndAt.time() == taskData.endAt.time() &&
-                (
-                  data.taskWasRecurring
-                    ? taskData.repeatWeekdays.hasAny([
-                        data.occurrenceDate.dayOfWeek()
-                      ])
-                    : data.occurrenceDate <=
-                        taskData.startAt + duration.value(1, 'd') &&
-                      data.scheduledStartAt == taskData.startAt &&
-                      data.scheduledEndAt == taskData.endAt
-                );
-            }
-
-            allow read: if canAccessElder(elderId);
-
-            allow create: if canAccessElder(elderId) &&
-              validCompletionFields() &&
-              validCompletionId() &&
-              taskMatchesCompletion() &&
-              validCompletionOccurrence();
-
-            // O histórico não pode ser alterado ou excluído pelo aplicativo.
-            allow update, delete: if false;
           }
 
           // --------------------------------------------------
-          // ROUTINE TASKS
+          // REPORTS
           // --------------------------------------------------
 
-          match /tasks/{taskId} {
+          match /reports/{reportId} {
 
-            function actorRole() {
-              return currentUser().type == 'idoso'
-                ? 'elder'
-                : currentUser().type;
-            }
+            allow create: if isActiveUser();
 
-            function validTaskDocument() {
-              return request.resource.data.taskId == taskId &&
-                request.resource.data.elderId == elderId &&
+            allow read, update, delete: if false;
+          }
+
+          // --------------------------------------------------
+          // ROUTINES
+          // --------------------------------------------------
+
+          match /routines/{elderId} {
+
+            function validRoutineDocument() {
+              return request.resource.data.elderId == elderId &&
                 request.resource.data.institutionId == currentUser().institutionId &&
-                request.resource.data.title is string &&
-                request.resource.data.title.size() > 0 &&
-                request.resource.data.startAt is timestamp &&
-                request.resource.data.endAt is timestamp &&
-                request.resource.data.endAt > request.resource.data.startAt &&
-                request.resource.data.createdByUserId is string &&
-                request.resource.data.createdByRole in [
-                  'elder',
-                  'caregiver',
-                  'family'
-                ] &&
-                request.resource.data.type in [
-                  'breakfast',
-                  'medication',
-                  'meal',
-                  'exercise',
-                  'leisure',
-                  'appointment',
-                  'hygiene',
-                  'sleep',
-                  'other'
-                ] &&
-                request.resource.data.repeatWeekly is bool &&
-                request.resource.data.repeatWeekdays is list &&
+                request.resource.data.canElderCreateTasks is bool &&
+                request.resource.data.canElderEditOwnTasks is bool &&
+                request.resource.data.updatedByUserId == request.auth.uid &&
                 request.resource.data.createdAt is timestamp &&
                 request.resource.data.updatedAt is timestamp;
             }
 
-            function elderCanCreateTask() {
-              return currentUser().type != 'idoso' ||
-                !exists(
-                  /databases/$(database)/documents/routines/$(elderId)
-                ) ||
-                get(
-                  /databases/$(database)/documents/routines/$(elderId)
-                ).data.canElderCreateTasks == true;
-            }
-
-            function elderCanChangeTask() {
-              return currentUser().type != 'idoso' ||
+            function validInitialRoutinePermissions() {
+              return currentUser().type == 'caregiver' ||
                 (
-                  resource.data.createdByUserId == request.auth.uid &&
-                  (
-                    !exists(
-                      /databases/$(database)/documents/routines/$(elderId)
-                    ) ||
-                    get(
-                      /databases/$(database)/documents/routines/$(elderId)
-                    ).data.canElderEditOwnTasks == true
-                  )
+                  request.resource.data.canElderCreateTasks == true &&
+                  request.resource.data.canElderEditOwnTasks == true
                 );
-            }
-
-            // Permite excluir uma tarefa única somente quando
-            // seu registro de conclusão é criado na mesma operação.
-            function completionCreatedInSameOperation() {
-              let completionPath =
-                /databases/$(database)/documents/routines/$(elderId)/completions/$(taskId);
-
-              return !exists(completionPath) &&
-                existsAfter(completionPath) &&
-                getAfter(completionPath).data.taskId == taskId &&
-                getAfter(completionPath).data.elderId == elderId &&
-                getAfter(completionPath).data.taskWasRecurring == false &&
-                getAfter(completionPath).data.completedByUserId ==
-                  request.auth.uid;
             }
 
             allow read: if canAccessElder(elderId);
 
             allow create: if canAccessElder(elderId) &&
-              elderCanCreateTask() &&
-              request.resource.data.createdByUserId == request.auth.uid &&
-              request.resource.data.createdByRole == actorRole() &&
-              validTaskDocument();
+              validRoutineDocument() &&
+              validInitialRoutinePermissions();
 
             allow update: if canAccessElder(elderId) &&
-              elderCanChangeTask() &&
-              request.resource.data.taskId == resource.data.taskId &&
+              currentUser().type == 'caregiver' &&
               request.resource.data.elderId == resource.data.elderId &&
               request.resource.data.institutionId == resource.data.institutionId &&
-              request.resource.data.createdByUserId ==
-                resource.data.createdByUserId &&
-              request.resource.data.createdByRole == resource.data.createdByRole &&
               request.resource.data.createdAt == resource.data.createdAt &&
-              validTaskDocument();
+              request.resource.data.updatedByUserId == request.auth.uid &&
+              request.resource.data.updatedAt is timestamp &&
+              request.resource.data
+                .diff(resource.data)
+                .affectedKeys()
+                .hasOnly([
+                  'canElderCreateTasks',
+                  'canElderEditOwnTasks',
+                  'updatedAt',
+                  'updatedByUserId'
+                ]);
 
-            allow delete: if canAccessElder(elderId) &&
-              (
-                elderCanChangeTask() ||
-                completionCreatedInSameOperation()
-              );
+            allow delete: if false;
+
+            // --------------------------------------------------
+            // ROUTINE COMPLETIONS / HISTORY
+            // --------------------------------------------------
+
+            match /completions/{completionId} {
+
+              function actorRole() {
+                return currentUser().type == 'idoso'
+                  ? 'elder'
+                  : currentUser().type;
+              }
+
+              function twoDigits(value) {
+                return value < 10
+                  ? '0' + string(value)
+                  : string(value);
+              }
+
+              function validCompletionFields() {
+                return request.resource.data.keys().hasAll([
+                    'taskId',
+                    'elderId',
+                    'institutionId',
+                    'taskTitle',
+                    'taskType',
+                    'occurrenceDate',
+                    'scheduledStartAt',
+                    'scheduledEndAt',
+                    'completedAt',
+                    'completedByUserId',
+                    'completedByRole',
+                    'taskWasRecurring'
+                  ]) &&
+                  request.resource.data.keys().hasOnly([
+                    'taskId',
+                    'elderId',
+                    'institutionId',
+                    'taskTitle',
+                    'taskType',
+                    'occurrenceDate',
+                    'scheduledStartAt',
+                    'scheduledEndAt',
+                    'completedAt',
+                    'completedByUserId',
+                    'completedByRole',
+                    'taskWasRecurring'
+                  ]) &&
+                  request.resource.data.taskId is string &&
+                  request.resource.data.taskId.size() > 0 &&
+                  request.resource.data.elderId == elderId &&
+                  request.resource.data.institutionId ==
+                    currentUser().institutionId &&
+                  request.resource.data.taskTitle is string &&
+                  request.resource.data.taskTitle.size() > 0 &&
+                  request.resource.data.taskType in [
+                    'breakfast',
+                    'medication',
+                    'meal',
+                    'exercise',
+                    'leisure',
+                    'appointment',
+                    'hygiene',
+                    'sleep',
+                    'other'
+                  ] &&
+                  request.resource.data.occurrenceDate is timestamp &&
+                  request.resource.data.scheduledStartAt is timestamp &&
+                  request.resource.data.scheduledEndAt is timestamp &&
+                  request.resource.data.scheduledEndAt >
+                    request.resource.data.scheduledStartAt &&
+                  request.resource.data.completedAt == request.time &&
+                  request.resource.data.completedByUserId ==
+                    request.auth.uid &&
+                  request.resource.data.completedByRole == actorRole() &&
+                  request.resource.data.taskWasRecurring is bool;
+              }
+
+              function validCompletionId() {
+                let data = request.resource.data;
+                let occurrence = data.occurrenceDate;
+
+                return data.taskWasRecurring
+                  ? completionId ==
+                      data.taskId + '_' +
+                      string(occurrence.year()) +
+                      twoDigits(occurrence.month()) +
+                      twoDigits(occurrence.day())
+                  : completionId == data.taskId;
+              }
+
+              function taskMatchesCompletion() {
+                let taskPath =
+                  /databases/$(database)/documents/routines/$(elderId)/tasks/$(request.resource.data.taskId);
+
+                return exists(taskPath) &&
+                  get(taskPath).data.taskId ==
+                    request.resource.data.taskId &&
+                  get(taskPath).data.elderId == elderId &&
+                  get(taskPath).data.institutionId ==
+                    request.resource.data.institutionId &&
+                  get(taskPath).data.title ==
+                    request.resource.data.taskTitle &&
+                  get(taskPath).data.type ==
+                    request.resource.data.taskType &&
+                  get(taskPath).data.repeatWeekly ==
+                    request.resource.data.taskWasRecurring;
+              }
+
+              function validCompletionOccurrence() {
+                let taskPath =
+                  /databases/$(database)/documents/routines/$(elderId)/tasks/$(request.resource.data.taskId);
+
+                let taskData = get(taskPath).data;
+                let data = request.resource.data;
+
+                return data.occurrenceDate >=
+                    taskData.startAt - duration.value(1, 'd') &&
+                  data.scheduledStartAt.time() == taskData.startAt.time() &&
+                  data.scheduledEndAt.time() == taskData.endAt.time() &&
+                  (
+                    data.taskWasRecurring
+                      ? taskData.repeatWeekdays.hasAny([
+                          data.occurrenceDate.dayOfWeek()
+                        ])
+                      : data.occurrenceDate <=
+                          taskData.startAt + duration.value(1, 'd') &&
+                        data.scheduledStartAt == taskData.startAt &&
+                        data.scheduledEndAt == taskData.endAt
+                  );
+              }
+
+              allow read: if canAccessElder(elderId);
+
+              allow create: if canAccessElder(elderId) &&
+                validCompletionFields() &&
+                validCompletionId() &&
+                taskMatchesCompletion() &&
+                validCompletionOccurrence();
+
+              // O histórico não pode ser alterado ou excluído pelo aplicativo.
+              allow update, delete: if false;
+            }
+
+            // --------------------------------------------------
+            // ROUTINE TASKS
+            // --------------------------------------------------
+
+            match /tasks/{taskId} {
+
+              function actorRole() {
+                return currentUser().type == 'idoso'
+                  ? 'elder'
+                  : currentUser().type;
+              }
+
+              function validTaskDocument() {
+                return request.resource.data.taskId == taskId &&
+                  request.resource.data.elderId == elderId &&
+                  request.resource.data.institutionId == currentUser().institutionId &&
+                  request.resource.data.title is string &&
+                  request.resource.data.title.size() > 0 &&
+                  request.resource.data.startAt is timestamp &&
+                  request.resource.data.endAt is timestamp &&
+                  request.resource.data.endAt > request.resource.data.startAt &&
+                  request.resource.data.createdByUserId is string &&
+                  request.resource.data.createdByRole in [
+                    'elder',
+                    'caregiver',
+                    'family'
+                  ] &&
+                  request.resource.data.type in [
+                    'breakfast',
+                    'medication',
+                    'meal',
+                    'exercise',
+                    'leisure',
+                    'appointment',
+                    'hygiene',
+                    'sleep',
+                    'other'
+                  ] &&
+                  request.resource.data.repeatWeekly is bool &&
+                  request.resource.data.repeatWeekdays is list &&
+                  request.resource.data.createdAt is timestamp &&
+                  request.resource.data.updatedAt is timestamp;
+              }
+
+              function elderCanCreateTask() {
+                return currentUser().type != 'idoso' ||
+                  !exists(
+                    /databases/$(database)/documents/routines/$(elderId)
+                  ) ||
+                  get(
+                    /databases/$(database)/documents/routines/$(elderId)
+                  ).data.canElderCreateTasks == true;
+              }
+
+              function elderCanChangeTask() {
+                return currentUser().type != 'idoso' ||
+                  (
+                    resource.data.createdByUserId == request.auth.uid &&
+                    (
+                      !exists(
+                        /databases/$(database)/documents/routines/$(elderId)
+                      ) ||
+                      get(
+                        /databases/$(database)/documents/routines/$(elderId)
+                      ).data.canElderEditOwnTasks == true
+                    )
+                  );
+              }
+
+              // Permite excluir uma tarefa única somente quando
+              // seu registro de conclusão é criado na mesma operação.
+              function completionCreatedInSameOperation() {
+                let completionPath =
+                  /databases/$(database)/documents/routines/$(elderId)/completions/$(taskId);
+
+                return !exists(completionPath) &&
+                  existsAfter(completionPath) &&
+                  getAfter(completionPath).data.taskId == taskId &&
+                  getAfter(completionPath).data.elderId == elderId &&
+                  getAfter(completionPath).data.taskWasRecurring == false &&
+                  getAfter(completionPath).data.completedByUserId ==
+                    request.auth.uid;
+              }
+
+              allow read: if canAccessElder(elderId);
+
+              allow create: if canAccessElder(elderId) &&
+                elderCanCreateTask() &&
+                request.resource.data.createdByUserId == request.auth.uid &&
+                request.resource.data.createdByRole == actorRole() &&
+                validTaskDocument();
+
+              allow update: if canAccessElder(elderId) &&
+                elderCanChangeTask() &&
+                request.resource.data.taskId == resource.data.taskId &&
+                request.resource.data.elderId == resource.data.elderId &&
+                request.resource.data.institutionId == resource.data.institutionId &&
+                request.resource.data.createdByUserId ==
+                  resource.data.createdByUserId &&
+                request.resource.data.createdByRole == resource.data.createdByRole &&
+                request.resource.data.createdAt == resource.data.createdAt &&
+                validTaskDocument();
+
+              allow delete: if canAccessElder(elderId) &&
+                (
+                  elderCanChangeTask() ||
+                  completionCreatedInSameOperation()
+                );
+            }
           }
         }
       }
-    }

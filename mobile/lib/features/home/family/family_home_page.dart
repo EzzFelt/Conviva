@@ -1,34 +1,116 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../shared/utils/profile_image.dart';
+import '../../auth/models/account_type.dart';
 import '../../auth/providers/current_user_provider.dart';
 import '../../chat/models/conversation_preview.dart';
 import '../../chat/providers/conversation_previews_provider.dart';
+import '../../chat/utils/chat_timestamp_formatter.dart';
 import '../../routine/models/routine_elder_summary.dart';
 import '../../routine/models/routine_task.dart';
 import '../../routine/providers/routine_provider.dart';
 import '../widgets/home_header_widget.dart';
 import '../widgets/routine_task_icon.dart';
 
-class FamilyHomePage extends ConsumerWidget {
+class FamilyHomePage extends ConsumerStatefulWidget {
   const FamilyHomePage({super.key, this.elderId, this.elderName = 'Idoso'});
 
   final String? elderId;
   final String elderName;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FamilyHomePage> createState() => _FamilyHomePageState();
+}
+
+class _FamilyHomePageState extends ConsumerState<FamilyHomePage> {
+  static const _selectedElderPreferencePrefix =
+      'conviva_family_selected_elder_';
+
+  final SharedPreferencesAsync _localStore = SharedPreferencesAsync();
+  Future<void> _selectionSaveQueue = Future<void>.value();
+  String? _selectedElderId;
+  String? _selectionUserId;
+  int _selectionVersion = 0;
+
+  String _selectedElderPreferenceKey(String userId) {
+    return '$_selectedElderPreferencePrefix$userId';
+  }
+
+  void _restoreSelectionFor(String userId) {
+    _selectionUserId = userId;
+    final version = ++_selectionVersion;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectionUserId != userId) return;
+      setState(() => _selectedElderId = null);
+      unawaited(_loadSelectedElder(userId, version));
+    });
+  }
+
+  Future<void> _loadSelectedElder(String userId, int version) async {
+    try {
+      final savedElderId = await _localStore.getString(
+        _selectedElderPreferenceKey(userId),
+      );
+      if (!mounted ||
+          _selectionUserId != userId ||
+          _selectionVersion != version ||
+          savedElderId == null) {
+        return;
+      }
+
+      setState(() => _selectedElderId = savedElderId);
+    } catch (error, stackTrace) {
+      debugPrint('Erro ao carregar o idoso selecionado: $error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
+  void _selectElder(String elderId, String userId) {
+    _selectionVersion++;
+    setState(() => _selectedElderId = elderId);
+    _selectionSaveQueue = _selectionSaveQueue.then((_) async {
+      try {
+        await _localStore.setString(
+          _selectedElderPreferenceKey(userId),
+          elderId,
+        );
+      } catch (error, stackTrace) {
+        debugPrint('Erro ao salvar o idoso selecionado: $error');
+        debugPrintStack(stackTrace: stackTrace);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Não foi possível salvar o idoso selecionado neste dispositivo.',
+              ),
+            ),
+          );
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final gradientColors = context.appGradientColors;
     final sizes = context.appSizes;
     final sessionState = ref.watch(currentUserProvider);
     final session = sessionState.hasValue ? sessionState.requireValue : null;
+    if (session != null &&
+        session.accountType == AccountType.family &&
+        session.uid != _selectionUserId) {
+      _restoreSelectionFor(session.uid);
+    }
     final familyName = session?.name.trim();
     final displayName = familyName == null || familyName.isEmpty
         ? 'Usuário'
@@ -40,16 +122,19 @@ class FamilyHomePage extends ConsumerWidget {
         ? eldersState.requireValue
         : const <RoutineElderSummary>[];
     final elder =
-        elders.where((item) => item.id == elderId).firstOrNull ??
-        (elderId == null && elders.isNotEmpty ? elders.first : null);
-    final resolvedElderId = elder?.id ?? elderId;
+        elders.where((item) => item.id == _selectedElderId).firstOrNull ??
+        elders.where((item) => item.id == widget.elderId).firstOrNull ??
+        elders.firstOrNull;
+    final resolvedElderId =
+        elder?.id ??
+        (eldersState.hasValue ? null : _selectedElderId ?? widget.elderId);
     final routineState = resolvedElderId == null
         ? null
         : ref.watch(routineTasksProvider(resolvedElderId));
     final linkedElderIds = linkedElderIdsState.hasValue
         ? linkedElderIdsState.requireValue
-        : elderId != null
-        ? {elderId!}
+        : widget.elderId != null
+        ? {widget.elderId!}
         : elders.map((item) => item.id).toSet();
     final conversations = conversationsState.hasValue
         ? conversationsState.requireValue
@@ -62,15 +147,18 @@ class FamilyHomePage extends ConsumerWidget {
               linkedElderIds.contains(conversation.participantId),
         )
         .toList();
+    final selectedElderConversations = familyConversations
+        .where((conversation) => conversation.participantId == resolvedElderId)
+        .toList();
     final isConversationLoading =
         !conversationsState.hasValue ||
-        (!linkedElderIdsState.hasValue && elderId == null);
+        (!linkedElderIdsState.hasValue && widget.elderId == null);
     final conversationError =
         (conversationsState.hasError && !conversationsState.hasValue) ||
         (linkedElderIdsState.hasError && !linkedElderIdsState.hasValue);
-    final latestConversation = familyConversations.isEmpty
+    final latestConversation = selectedElderConversations.isEmpty
         ? null
-        : familyConversations.first;
+        : selectedElderConversations.first;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -114,11 +202,60 @@ class FamilyHomePage extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (elders.length > 1) ...[
+                            Padding(
+                              padding: EdgeInsets.only(
+                                top: sizes.md,
+                                bottom: sizes.md,
+                              ),
+                              child: Material(
+                                color: Colors.transparent,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Trocar o idoso visualizado',
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        key: const ValueKey(
+                                          'family-elder-selector',
+                                        ),
+                                        value: elder?.id ?? elders.first.id,
+                                        isExpanded: true,
+                                        items: [
+                                          for (final linkedElder in elders)
+                                            DropdownMenuItem(
+                                              value: linkedElder.id,
+                                              child: Text(
+                                                linkedElder.name,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                        ],
+                                        onChanged: (id) {
+                                          if (id != null && session != null) {
+                                            _selectElder(id, session.uid);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                           _routineSummary(
                             context,
                             elder: elder,
                             elderId: resolvedElderId,
-                            elderNameFallback: elderName,
+                            elderNameFallback: widget.elderName,
                             eldersState: eldersState,
                             tasksState: routineState,
                           ),
@@ -147,6 +284,37 @@ class FamilyHomePage extends ConsumerWidget {
                             isLoading: isConversationLoading,
                             hasError: conversationError,
                             elder: elder,
+                          ),
+                          SizedBox(height: sizes.md),
+                          Center(
+                            child: SizedBox(
+                              width: 280,
+                              child: OutlinedButton(
+                                key: const ValueKey('family-add-elder-button'),
+                                onPressed: () =>
+                                    context.push(RouteNames.familyLink),
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: Size.fromHeight(
+                                    sizes.buttonMedium,
+                                  ),
+                                  backgroundColor:
+                                      colorScheme.surfaceContainerLow,
+                                  foregroundColor: colorScheme.primary,
+                                  side: BorderSide(color: colorScheme.primary),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      sizes.radiusFull,
+                                    ),
+                                  ),
+                                ),
+                                child: Text(
+                                  'Adicionar Familiar',
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -383,7 +551,7 @@ class FamilyHomePage extends ConsumerWidget {
                         child: Icon(
                           routineTaskIcon(visibleTasks[index].type),
                           color: colorScheme.primary,
-                          size: sizes.lg,
+                          size: sizes.icon(sizes.lg),
                         ),
                       ),
                       SizedBox(height: sizes.sm),
@@ -449,9 +617,9 @@ class FamilyHomePage extends ConsumerWidget {
         : conversation.lastMessage.trim().isEmpty
         ? 'Inicie uma conversa'
         : conversation.lastMessage;
-    final timeLabel = conversation?.lastMessageAt == null
-        ? ''
-        : _formatTime(conversation!.lastMessageAt!);
+    final timeLabel = familyHomeMessageTimestampLabel(
+      conversation?.lastMessageAt,
+    );
 
     final cardRadius = BorderRadius.circular(sizes.radiusMd);
     void openConversation() {
@@ -601,7 +769,7 @@ class FamilyHomePage extends ConsumerWidget {
                       Icons.send_rounded,
                       key: const ValueKey('family-message-send-icon'),
                       color: colorScheme.onPrimary,
-                      size: sizes.lg,
+                      size: sizes.icon(sizes.lg),
                     ),
                   ),
                 ),

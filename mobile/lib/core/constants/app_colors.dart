@@ -4,7 +4,10 @@ class AppColors {
   AppColors._();
 
   // Primary
-  static const primary = Color(0xFFF54C04);
+  // Laranja dos botões e destaques (Figma: #F38024).
+  static const primary = Color(0xFFF38024);
+  // Cor antiga do primary; usada só para migrar configurações salvas.
+  static const legacyPrimary = Color(0xFFF54C04);
 
   // Gradient
   static const gradientTop = Color(0xFFF54C04);
@@ -29,6 +32,12 @@ class AppColors {
   static const card = Colors.white;
 
   static const shadow = Color(0x14000000);
+
+  // Barra de navegação e painéis (Figma)
+  static const navigationBackground = Color(0xFFF0F0F0);
+  static const navigationInactive = Color(0xFF868984);
+  static const navigationBorder = Color(0x33000000);
+  static const panelTop = Color(0xFFEBEBEB);
 
   static const disabled = Color(0xFFBDBDBD);
 }

@@ -1,4 +1,3 @@
-
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,9 +10,9 @@ import '../models/user_session.dart';
 
 final currentUserProvider =
     AsyncNotifierProvider<CurrentUserNotifier, UserSession?>(
-  CurrentUserNotifier.new,
-  retry: (retryCount, error) => null,
-);
+      CurrentUserNotifier.new,
+      retry: (retryCount, error) => null,
+    );
 
 class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
   late final AuthService _authService = AuthService.instance;
@@ -25,9 +24,7 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
   /// caso ocorra algum problema no carregamento.
   Future<void> _initializeSettings(String? userId) async {
     try {
-      await ref
-          .read(appSettingsProvider.notifier)
-          .initialize(userId: userId);
+      await ref.read(appSettingsProvider.notifier).initialize(userId: userId);
     } catch (_) {
       // As preferências não devem bloquear a autenticação.
     }
@@ -56,6 +53,15 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
           AccountType.family => 'family',
         },
       );
+
+      if (accountType != AccountType.elder) {
+        await _initializeSettings(null);
+        state = const AsyncData(null);
+        return const AuthRegistrationResult(
+          session: null,
+          requiresEmailVerification: true,
+        );
+      }
 
       final session = await _requireCurrentSession();
       state = AsyncData(session);
@@ -92,8 +98,8 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
           AccountType.caregiver => 'caregiver',
           AccountType.family => 'family',
           AccountType.elder => throw ArgumentError(
-              'O idoso deve entrar usando o código de acesso.',
-            ),
+            'O idoso deve entrar usando o código de acesso.',
+          ),
         },
       );
 
@@ -119,8 +125,7 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
     state = const AsyncLoading();
 
     try {
-      final userDocument =
-          await _authService.loginElderWithCodeAndPassword(
+      final userDocument = await _authService.loginElderWithCodeAndPassword(
         elderCode: elderCode,
         password: password,
       );
@@ -156,6 +161,8 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
   Future<UserSession> updateProfile({
     required String name,
     required String phone,
+    String? jobTitle,
+    String? workShift,
   }) async {
     final currentSession = state.value;
 
@@ -164,14 +171,26 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
     }
 
     try {
+      final isCaregiver = currentSession.accountType == AccountType.caregiver;
+      final updatedJobTitle = isCaregiver
+          ? (jobTitle ?? currentSession.jobTitle).trim()
+          : null;
+      final updatedWorkShift = isCaregiver
+          ? (workShift ?? currentSession.workShift).trim()
+          : null;
+
       await _authService.updateCurrentUserProfile(
         name: name,
         phone: phone,
+        jobTitle: updatedJobTitle,
+        workShift: updatedWorkShift,
       );
 
       final updatedSession = currentSession.copyWith(
         name: name.trim(),
         phone: AuthRegister.normalizePhone(phone),
+        jobTitle: updatedJobTitle,
+        workShift: updatedWorkShift,
       );
 
       state = AsyncData(updatedSession);
@@ -227,9 +246,7 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
     final session = await _loadCurrentSession();
 
     if (session == null) {
-      throw StateError(
-        'A sessão não foi criada após a autenticação.',
-      );
+      throw StateError('A sessão não foi criada após a autenticação.');
     }
 
     return session;
@@ -247,13 +264,11 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
     final data = userDocument.data();
 
     if (data == null) {
-      throw StateError('Perfil do usuário não encontrado.');
+      await _initializeSettings(null);
+      return null;
     }
 
-    final session = UserSession.fromMap(
-      uid: userDocument.id,
-      data: data,
-    );
+    final session = UserSession.fromMap(uid: userDocument.id, data: data);
 
     if (session.status != 'active') {
       throw StateError('Esta conta não está ativa.');

@@ -47,7 +47,36 @@ class ReportOffenderCard extends StatelessWidget {
                 SizedBox(
                   width: sizes.xxl * 1.6,
                   height: sizes.xxl * 1.4,
-                  child: illustration,
+                  child: selected
+                      ? illustration
+                      : Opacity(
+                          opacity: .48,
+                          child: ColorFiltered(
+                            colorFilter: const ColorFilter.matrix([
+                              .2126,
+                              .7152,
+                              .0722,
+                              0,
+                              0,
+                              .2126,
+                              .7152,
+                              .0722,
+                              0,
+                              0,
+                              .2126,
+                              .7152,
+                              .0722,
+                              0,
+                              0,
+                              0,
+                              0,
+                              0,
+                              1,
+                              0,
+                            ]),
+                            child: illustration,
+                          ),
+                        ),
                 ),
                 SizedBox(width: sizes.lg),
                 Expanded(

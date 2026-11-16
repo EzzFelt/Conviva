@@ -42,28 +42,37 @@ class AuriService {
     final apiKey = const String.fromEnvironment('GEMINI_API_KEY');
     if (apiKey.trim().isEmpty) {
       throw StateError(
-        'A chave do Gemini não foi configurada. '
-        'Execute com --dart-define=GEMINI_API_KEY=SUA_CHAVE.',
+        'A chave do Gemini não foi carregada. '
+        'No VS Code, inicie pelo perfil "Conviva"; no terminal, '
+        'use --dart-define-from-file=gemini_env.json.',
       );
     }
 
     final chat = _firestore.collection('auriChats').doc(userId);
     final messages = chat.collection('messages');
-    await messages.add({
-      'sender': 'user',
-      'text': normalizedQuestion,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    await chat.set({
-      'userId': userId,
-      'lastInteraction': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-
-    final recent = await messages
+    final userMessage = messages.doc();
+    final recentFuture = messages
         .orderBy('createdAt', descending: true)
         .limit(12)
         .get();
-    final history = recent.docs.reversed
+    final initialBatch = _firestore.batch()
+      ..set(userMessage, {
+        'sender': 'user',
+        'text': normalizedQuestion,
+        'createdAt': FieldValue.serverTimestamp(),
+      })
+      ..set(chat, {
+        'userId': userId,
+        'lastInteraction': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    await initialBatch.commit();
+
+    final recent = await recentFuture;
+    final previousMessages = recent.docs
+        .where((document) => document.id != userMessage.id)
+        .take(11)
+        .toList();
+    final history = previousMessages.reversed
         .map(
           (document) => Content(
             document.data()['sender'] == 'auri' ? 'model' : 'user',
@@ -71,6 +80,7 @@ class AuriService {
           ),
         )
         .toList();
+    history.add(Content('user', [TextPart(normalizedQuestion)]));
     // Keep the assistant guidance in the request history for compatibility
     // with API versions that do not accept a systemInstruction parameter.
     history.insert(0, Content.text(_systemInstruction));
@@ -95,15 +105,18 @@ class AuriService {
       throw StateError('O Auri não retornou uma resposta.');
     }
 
-    await messages.add({
-      'sender': 'auri',
-      'text': answer,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    await chat.set({
-      'userId': userId,
-      'lastInteraction': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    final auriMessage = messages.doc();
+    final responseBatch = _firestore.batch()
+      ..set(auriMessage, {
+        'sender': 'auri',
+        'text': answer,
+        'createdAt': FieldValue.serverTimestamp(),
+      })
+      ..set(chat, {
+        'userId': userId,
+        'lastInteraction': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    await responseBatch.commit();
   }
 
   bool _isServerFailure(GenerativeAIException error) {

@@ -38,7 +38,7 @@ class NotificationButtonWidget extends StatelessWidget {
           children: [
             Icon(
               Icons.notifications_rounded,
-              size: sizes.xl + sizes.xs,
+              size: sizes.icon(sizes.xl + sizes.xs),
               color: iconColor ?? colorScheme.onPrimary,
             ),
             if (notificationCount > 0)

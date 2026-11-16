@@ -21,8 +21,7 @@ class ChatAvatarWidget extends StatelessWidget {
   IconData _fallbackIcon() {
     return switch (participantType) {
       ConversationParticipantType.family => Icons.family_restroom_rounded,
-      ConversationParticipantType.caregiver =>
-        Icons.health_and_safety_rounded,
+      ConversationParticipantType.caregiver => Icons.health_and_safety_rounded,
       ConversationParticipantType.elder => Icons.elderly_rounded,
       ConversationParticipantType.staff => Icons.badge_rounded,
     };
@@ -34,8 +33,8 @@ class ChatAvatarWidget extends StatelessWidget {
     final sizes = context.appSizes;
     final dimension = size ?? sizes.xxl;
     final normalizedPhotoUrl = photoUrl?.trim();
-    final hasPhoto = normalizedPhotoUrl != null &&
-        normalizedPhotoUrl.isNotEmpty;
+    final photoImage = profileImageProvider(normalizedPhotoUrl);
+    final hasPhoto = photoImage != null;
 
     return SizedBox.square(
       dimension: dimension + sizes.xs,
@@ -45,9 +44,7 @@ class ChatAvatarWidget extends StatelessWidget {
           Positioned.fill(
             child: CircleAvatar(
               backgroundColor: colorScheme.primary.withValues(alpha: .12),
-              foregroundImage: hasPhoto
-                  ? profileImageProvider(normalizedPhotoUrl)
-                  : null,
+              foregroundImage: photoImage,
               child: hasPhoto
                   ? null
                   : Icon(
@@ -75,9 +72,9 @@ class ChatAvatarWidget extends StatelessWidget {
                 child: Text(
                   unreadCount > 9 ? '9+' : '$unreadCount',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onError,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: colorScheme.onError,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),

@@ -50,15 +50,31 @@ final reportTargetsProvider = FutureProvider.autoDispose
               .get();
           if (!document.exists) return const [];
           final data = document.data() ?? <String, dynamic>{};
-          return [
-            ReportTarget(
-              id: document.id,
-              name: _firstString(data, const ['name', 'title']) ?? document.id,
-              photoUrl: _firstString(data, const ['photoUrl', 'imageUrl']),
-            ),
-          ];
+          return [reportTargetFromInstitution(document.id, data)];
       }
     });
+
+ReportTarget reportTargetFromInstitution(String id, Map<String, dynamic> data) {
+  return ReportTarget(
+    id: id,
+    name:
+        _firstString(data, const [
+          'name',
+          'nome',
+          'title',
+          'displayName',
+          'institutionName',
+          'institution_name',
+          'nomeInstituicao',
+          'nomeFantasia',
+          'fantasyName',
+          'razaoSocial',
+          'institution',
+        ]) ??
+        'Instituição',
+    photoUrl: _firstString(data, const ['photoUrl', 'imageUrl', 'logoUrl']),
+  );
+}
 
 Future<List<ReportTarget>> _loadLinkedFamilyTargets(
   FirebaseFirestore firestore,

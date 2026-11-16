@@ -17,6 +17,7 @@ import '../models/auth_arguments.dart';
 import '../models/auth_mode.dart';
 import '../providers/authenticated_user_navigator.dart';
 import '../providers/current_user_provider.dart';
+import '../../../core/services/auth_service.dart';
 
 import '../widgets/auth_footer_widget.dart';
 import '../widgets/auth_header_widget.dart';
@@ -24,10 +25,7 @@ import '../widgets/auth_header_widget.dart';
 class LoginPage extends ConsumerStatefulWidget {
   final AuthArguments arguments;
 
-  const LoginPage({
-    super.key,
-    required this.arguments,
-  });
+  const LoginPage({super.key, required this.arguments});
 
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
@@ -68,7 +66,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
       if (!mounted) return;
       await AuthenticatedUserNavigator.open(context, session);
-      } catch (error) {
+    } on EmailVerificationRequiredException {
+      if (mounted) context.go(RouteNames.verifyEmail);
+    } catch (error) {
       if (!mounted) return;
 
       final message = AuthErrorMessage.from(
@@ -76,9 +76,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         context: AuthErrorContext.login,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) {
         setState(() {
@@ -145,9 +145,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                   SizedBox(height: sizes.xl),
 
-                  const AuthHeaderWidget(
-                    title: 'Entre na\nsua conta!',
-                  ),
+                  const AuthHeaderWidget(title: 'Entre na\nsua conta!'),
 
                   SizedBox(height: sizes.xl),
 
@@ -171,7 +169,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     onFieldSubmitted: (_) => _login(),
                   ),
 
-                  SizedBox(height: sizes.xl),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () => context.go(
+                              RouteNames.forgotPassword,
+                              extra: widget.arguments,
+                            ),
+                      child: const Text('Esqueci minha senha'),
+                    ),
+                  ),
+
+                  SizedBox(height: sizes.lg),
 
                   ButtonWidget(
                     label: _isLoading ? 'Entrando...' : 'Entrar',

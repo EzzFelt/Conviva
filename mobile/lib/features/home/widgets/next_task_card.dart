@@ -91,7 +91,7 @@ class NextTaskCard extends StatelessWidget {
                                       children: [
                                         Icon(
                                           routineTaskIcon(task?.type),
-                                          size: sizes.xxl + sizes.md,
+                                          size: sizes.icon(sizes.xxl + sizes.md),
                                           color: colorScheme.onPrimary,
                                         ),
                                         SizedBox(width: sizes.lg),

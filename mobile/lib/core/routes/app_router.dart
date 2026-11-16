@@ -4,8 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/models/auth_arguments.dart';
 import '../../features/auth/pages/elder_login_page.dart';
 import '../../features/auth/pages/family_link_page.dart';
+import '../../features/auth/pages/forgot_password_page.dart';
 import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
+import '../../features/auth/pages/verify_email_page.dart';
 import '../../features/auri/pages/auri_page.dart';
 import '../../features/chat/pages/chat_page.dart';
 import '../../features/chat/pages/conversation_page.dart';
@@ -72,6 +74,19 @@ class AppRouter {
         },
         builder: (context, state) {
           return LoginPage(arguments: state.extra as AuthArguments);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.verifyEmail,
+        builder: (context, state) => const VerifyEmailPage(),
+      ),
+      GoRoute(
+        path: RouteNames.forgotPassword,
+        redirect: (context, state) {
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
+        },
+        builder: (context, state) {
+          return ForgotPasswordPage(arguments: state.extra as AuthArguments);
         },
       ),
       GoRoute(
