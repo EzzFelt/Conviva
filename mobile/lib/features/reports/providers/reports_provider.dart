@@ -158,6 +158,9 @@ String _accountTypeValue(AccountType type) => switch (type) {
   AccountType.elder => 'idoso',
   AccountType.family => 'family',
   AccountType.caregiver => 'caregiver',
+  AccountType.support => throw StateError(
+    'A equipe de suporte não pode criar denúncias.',
+  ),
 };
 
 String _reportKindValue(ReportKind? kind) => switch (kind) {

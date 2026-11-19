@@ -38,6 +38,10 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
     required AccountType accountType,
     String? email,
   }) async {
+    if (accountType == AccountType.support) {
+      throw StateError('Contas de suporte são criadas pelo administrador.');
+    }
+
     state = const AsyncLoading();
 
     try {
@@ -51,6 +55,9 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
           AccountType.elder => 'idoso',
           AccountType.caregiver => 'caregiver',
           AccountType.family => 'family',
+          AccountType.support => throw StateError(
+            'Contas de suporte não podem ser cadastradas pelo aplicativo.',
+          ),
         },
       );
 
@@ -97,6 +104,7 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
         accountType: switch (accountType) {
           AccountType.caregiver => 'caregiver',
           AccountType.family => 'family',
+          AccountType.support => 'support',
           AccountType.elder => throw ArgumentError(
             'O idoso deve entrar usando o código de acesso.',
           ),
@@ -255,7 +263,10 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
   Future<UserSession?> _loadCurrentSession() async {
     final userId = _authService.currentUserId;
 
-    if (userId == null) {
+    // A sessão anônima da recuperação de senha não tem perfil em `users`.
+    // Ela não é uma conta do app: segue sem sessão (vai para o início) e é
+    // mantida para a recuperação continuar quando a pessoa voltar a ela.
+    if (userId == null || _authService.isCurrentUserAnonymous) {
       await _initializeSettings(null);
       return null;
     }

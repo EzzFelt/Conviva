@@ -62,6 +62,9 @@ class RoutineRepository {
       AccountType.elder => RoutineTaskCreatorRole.elder,
       AccountType.caregiver => RoutineTaskCreatorRole.caregiver,
       AccountType.family => RoutineTaskCreatorRole.family,
+      AccountType.support => throw StateError(
+        'A equipe de suporte não pode concluir tarefas.',
+      ),
     };
 
     await _firestore.runTransaction((transaction) async {
@@ -182,6 +185,10 @@ class RoutineRepository {
   Stream<List<RoutineElderSummary>> watchAccessibleElders(
     UserSession actor,
   ) async* {
+    if (actor.accountType == AccountType.support) {
+      throw StateError('A equipe de suporte não acessa rotinas.');
+    }
+
     switch (actor.accountType) {
       case AccountType.elder:
         yield* watchElder(actor.uid).map(
@@ -199,6 +206,9 @@ class RoutineRepository {
         await _migrateLegacyFamilyLinks(actor);
         yield* _watchLinkedElders(actor);
         return;
+
+      case AccountType.support:
+        throw StateError('A equipe de suporte não acessa rotinas.');
     }
   }
 

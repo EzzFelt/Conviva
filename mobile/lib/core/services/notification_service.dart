@@ -890,6 +890,10 @@ class NotificationService {
       final path = switch (type) {
         'message' => _chatPath(data['chatId']?.toString()),
         'task' => _routinePath(data['elderId']?.toString()),
+        'password_reset' => _passwordResetPath(
+          data['requestId']?.toString(),
+          data['elderName']?.toString(),
+        ),
         _ => null,
       };
 
@@ -913,6 +917,10 @@ class NotificationService {
       final path = switch (data['type']?.toString()) {
         'message' => _chatPath(data['chatId']?.toString()),
         'task' => _routinePath(data['elderId']?.toString()),
+        'password_reset' => _passwordResetPath(
+          data['requestId']?.toString(),
+          data['elderName']?.toString(),
+        ),
         _ => null,
       };
       if (path != null) _onNotificationTap?.call(path);
@@ -934,6 +942,18 @@ class NotificationService {
     return normalizedId == null || normalizedId.isEmpty
         ? null
         : '/routine/${Uri.encodeComponent(normalizedId)}';
+  }
+
+  String? _passwordResetPath(String? requestId, String? elderName) {
+    final normalizedId = requestId?.trim();
+    if (normalizedId == null || normalizedId.isEmpty) return null;
+
+    final name = elderName?.trim();
+    final query = name == null || name.isEmpty
+        ? ''
+        : '?elderName=${Uri.encodeQueryComponent(name)}';
+    return '/password-reset/approval/'
+        '${Uri.encodeComponent(normalizedId)}$query';
   }
 
   Future<void> dispose() async {

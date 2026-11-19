@@ -300,6 +300,9 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
       AccountType.elder => RoutineTaskCreatorRole.elder,
       AccountType.caregiver => RoutineTaskCreatorRole.caregiver,
       AccountType.family => RoutineTaskCreatorRole.family,
+      AccountType.support => throw StateError(
+        'A equipe de suporte não pode editar rotinas.',
+      ),
     };
   }
 

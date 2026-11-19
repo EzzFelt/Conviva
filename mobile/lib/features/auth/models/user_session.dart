@@ -35,6 +35,7 @@ class UserSession {
       'idoso' => AccountType.elder,
       'caregiver' => AccountType.caregiver,
       'family' => AccountType.family,
+      'support' => AccountType.support,
       _ => throw StateError('Tipo de conta inválido.'),
     };
 
@@ -91,6 +92,7 @@ class UserSession {
         AccountType.elder => 'idoso',
         AccountType.caregiver => 'caregiver',
         AccountType.family => 'family',
+        AccountType.support => 'support',
       },
       'institutionId': institutionId,
       'status': status,

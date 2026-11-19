@@ -1,17 +1,17 @@
-/// Configuração da recuperação de senha do idoso no plano gratuito.
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
+/// Configuração do e-mail interno usado na autenticação do idoso.
 ///
-/// A conta do idoso precisa de um e-mail interno (o idoso entra com o código
-/// ELD). Para que o link de redefinição chegue a alguém, esse e-mail é um
-/// "endereço com +" da caixa abaixo, por exemplo:
+/// O idoso entra com o código ELD; o Firebase Auth exige um e-mail associado à
+/// conta. Este endereço com "+" mantém essas contas na mesma caixa, por
+/// exemplo:
 ///
 ///   suporte.convia@gmail.com  ->  suporte.convia+eld12345678@gmail.com
 ///
-/// O Gmail entrega todos esses endereços na MESMA caixa. A pessoa
-/// responsável (instituição, cuidador ou familiar) abre o link e define a
-/// nova senha junto com o idoso.
-///
-/// A recuperação por e-mail vale para novos cadastros. Contas já criadas
-/// continuam usando o endereço legado e precisam de suporte administrativo.
+/// A redefinição de senha do idoso é feita no app depois da aprovação de um
+/// familiar vinculado ou cuidador da instituição.
 class RecoveryConfig {
   RecoveryConfig._();
 
@@ -19,6 +19,14 @@ class RecoveryConfig {
 
   static bool get isElderRecoveryConfigured {
     return RegExp(r'^[^@\s+]+@[^@\s]+\.[^@\s]+$').hasMatch(elderSupportMailbox);
+  }
+
+  static String elderRecoveryLookupId(String normalizedElderCode) {
+    if (!RegExp(r'^ELD[A-Z0-9]{4,}$').hasMatch(normalizedElderCode)) {
+      throw ArgumentError('Informe um código de acesso válido.');
+    }
+
+    return sha256.convert(utf8.encode(normalizedElderCode)).toString();
   }
 
   /// `suporte@gmail.com` + `eld123` -> `suporte+eld123@gmail.com`

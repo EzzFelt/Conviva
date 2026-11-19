@@ -33,6 +33,7 @@ class AccountTypePage extends StatelessWidget {
     );
 
     if (authMode == AuthMode.register) {
+      if (accountType == AccountType.support) return;
       context.go(
         RouteNames.register,
         extra: arguments,
@@ -132,6 +133,19 @@ class AccountTypePage extends StatelessWidget {
                   AccountType.family,
                 ),
               ),
+              if (authMode == AuthMode.login) ...[
+                SizedBox(height: sizes.md),
+                BorderCardWidget(
+                  leading: Icon(
+                    Icons.support_agent_rounded,
+                    size: avatarSize * 0.6,
+                    color: theme.colorScheme.primary,
+                  ),
+                  title: 'Equipe de suporte',
+                  description: 'Acesso exclusivo para contas administrativas.',
+                  onTap: () => _navigate(context, AccountType.support),
+                ),
+              ],
             ],
           ),
         ),

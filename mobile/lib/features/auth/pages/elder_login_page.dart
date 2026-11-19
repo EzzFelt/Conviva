@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../models/auth_error_message.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/services/elder_recovery_request_service.dart';
 import '../../../shared/widgets/back_button_widget.dart';
 import '../../../shared/widgets/button_widget.dart';
 import '../../../shared/widgets/password_text_field_widget.dart';
@@ -76,6 +77,27 @@ class _ElderLoginPageState extends ConsumerState<ElderLoginPage> {
           );
 
       if (!mounted) return;
+      var recoveryCleanupFailed = false;
+      try {
+        await ElderRecoveryRequestService.instance
+            .completeForwardedRequestsAfterElderLogin();
+      } catch (error, stackTrace) {
+        debugPrint('Falha ao concluir os pedidos de recuperação: $error');
+        debugPrintStack(stackTrace: stackTrace);
+        recoveryCleanupFailed = true;
+      }
+
+      if (!mounted) return;
+      if (recoveryCleanupFailed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'A senha foi aceita, mas não foi possível limpar os dados '
+              'temporários. Tente novamente ou contate o suporte.',
+            ),
+          ),
+        );
+      }
       await AuthenticatedUserNavigator.open(context, session);
     }  catch (error) {
       if (!mounted) return;

@@ -8,12 +8,15 @@ class RouteNames {
   static const login = '/login';
   static const elderLogin = '/login/elder';
   static const forgotPassword = '/login/forgot-password';
+  static const elderPasswordReset = '/login/forgot-password/new-password';
+  static const passwordResetApproval = '/password-reset/approval/:requestId';
   static const verifyEmail = '/verify-email';
   static const familyLink = '/family-link';
 
   static const elderHome = '/home/elder';
   static const caregiverHome = '/home/caregiver';
   static const familyHome = '/home/family';
+  static const supportHome = '/support';
 
   static const menu = '/menu';
   static const chat = '/chat';
@@ -36,5 +39,9 @@ class RouteNames {
 
   static String routinePath(String elderId) {
     return '/routine/${Uri.encodeComponent(elderId)}';
+  }
+
+  static String passwordResetApprovalPath(String requestId) {
+    return '/password-reset/approval/${Uri.encodeComponent(requestId)}';
   }
 }

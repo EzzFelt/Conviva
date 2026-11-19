@@ -14,7 +14,8 @@ class AuthenticatedUserNavigator {
     UserSession session,
   ) async {
     // Familiar e cuidador só entram depois de confirmar o e-mail.
-    if (session.accountType != AccountType.elder) {
+    if (session.accountType != AccountType.elder &&
+        session.accountType != AccountType.support) {
       final verified = await AuthService.instance.isCurrentEmailVerified();
 
       if (!context.mounted) return;
@@ -54,6 +55,11 @@ class AuthenticatedUserNavigator {
             },
           );
         }
+        return;
+
+      case AccountType.support:
+        context.go(RouteNames.supportHome);
+        return;
     }
   }
 }

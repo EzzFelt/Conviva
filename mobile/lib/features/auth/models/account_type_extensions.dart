@@ -20,6 +20,9 @@ extension AccountTypeExtensions on AccountType {
 
       case AccountType.family:
         return 'Familiar';
+
+      case AccountType.support:
+        return 'Equipe de suporte';
     }
   }
 }

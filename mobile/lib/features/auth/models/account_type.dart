@@ -1,5 +1,1 @@
-enum AccountType {
-  elder,
-  caregiver,
-  family,
-}
+enum AccountType { elder, caregiver, family, support }

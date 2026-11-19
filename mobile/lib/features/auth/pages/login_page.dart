@@ -15,6 +15,7 @@ import '../../onboarding/models/onboarding_arguments.dart';
 
 import '../models/auth_arguments.dart';
 import '../models/auth_mode.dart';
+import '../models/account_type.dart';
 import '../providers/authenticated_user_navigator.dart';
 import '../providers/current_user_provider.dart';
 import '../../../core/services/auth_service.dart';
@@ -114,6 +115,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final accountType = widget.arguments.accountType;
+    final isSupport = accountType == AccountType.support;
     final colorScheme = Theme.of(context).colorScheme;
     final sizes = context.appSizes;
 
@@ -145,7 +147,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                   SizedBox(height: sizes.xl),
 
-                  const AuthHeaderWidget(title: 'Entre na\nsua conta!'),
+                  AuthHeaderWidget(
+                    title: isSupport
+                        ? 'Acesso da\nequipe de suporte'
+                        : 'Entre na\nsua conta!',
+                  ),
 
                   SizedBox(height: sizes.xl),
 
@@ -169,18 +175,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     onFieldSubmitted: (_) => _login(),
                   ),
 
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => context.go(
-                              RouteNames.forgotPassword,
-                              extra: widget.arguments,
-                            ),
-                      child: const Text('Esqueci minha senha'),
+                  if (!isSupport)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () => context.go(
+                                RouteNames.forgotPassword,
+                                extra: widget.arguments,
+                              ),
+                        child: const Text('Esqueci minha senha'),
+                      ),
                     ),
-                  ),
 
                   SizedBox(height: sizes.lg),
 
@@ -192,19 +199,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                   SizedBox(height: sizes.lg),
 
-                  AuthFooterWidget(
-                    text: 'Ainda não possui conta?',
-                    actionText: 'Cadastre-se',
-                    onTap: () {
-                      context.go(
-                        RouteNames.register,
-                        extra: AuthArguments(
-                          accountType: accountType,
-                          authMode: AuthMode.register,
-                        ),
-                      );
-                    },
-                  ),
+                  if (!isSupport)
+                    AuthFooterWidget(
+                      text: 'Ainda não possui conta?',
+                      actionText: 'Cadastre-se',
+                      onTap: () {
+                        context.go(
+                          RouteNames.register,
+                          extra: AuthArguments(
+                            accountType: accountType,
+                            authMode: AuthMode.register,
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),

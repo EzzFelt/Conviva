@@ -183,22 +183,36 @@ class AuthRegister {
 
     try {
       await user.updateDisplayName(name.trim());
-      await _firestore.collection('users').doc(user.uid).set({
-        'name': name.trim(),
-        'elderLinkCode': elderLinkCode,
-        'phone': phone,
-        'type': 'idoso',
-        'institutionId': institutionId,
-        'status': 'active',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      final userReference = _firestore.collection('users').doc(user.uid);
+      final lookupId = RecoveryConfig.elderRecoveryLookupId(elderLinkCode);
+      final lookupReference = _firestore
+          .collection('elderRecoveryLookups')
+          .doc(lookupId);
+      final batch = _firestore.batch()
+        ..set(userReference, {
+          'name': name.trim(),
+          'elderLinkCode': elderLinkCode,
+          'phone': phone,
+          'type': 'idoso',
+          'institutionId': institutionId,
+          'status': 'active',
+          'createdAt': FieldValue.serverTimestamp(),
+        })
+        ..set(lookupReference, {
+          'elderUid': user.uid,
+          'institutionId': institutionId,
+          'familyUid': null,
+          'caregiverUid': null,
+        });
+      await batch.commit();
     } on FirebaseException catch (error) {
       await _deleteCreatedUser(user);
 
       if (error.code == 'permission-denied') {
         throw Exception(
           'O Firestore recusou a criação do perfil do idoso. '
-          'Verifique se as regras publicadas aceitam elderLinkCode.',
+          'Verifique se as regras publicadas aceitam o perfil e o índice '
+          'de recuperação.',
         );
       }
 
@@ -287,6 +301,10 @@ class AuthService {
 
   String? get currentUserId => _auth.currentUser?.uid;
 
+  /// A sessão ativa é a temporária usada na recuperação de senha do idoso?
+  /// Ela existe só no Firebase Auth e não tem perfil em `users`.
+  bool get isCurrentUserAnonymous => _auth.currentUser?.isAnonymous ?? false;
+
   Future<DocumentSnapshot<Map<String, dynamic>>> loginWithEmailAndPassword({
     required String email,
     required String password,
@@ -299,11 +317,13 @@ class AuthService {
 
     try {
       final user = credential.user;
-      if (accountType != 'idoso' && user?.emailVerified != true) {
+      if (accountType != 'idoso' &&
+          accountType != 'support' &&
+          user?.emailVerified != true) {
         throw const EmailVerificationRequiredException();
       }
 
-      if (accountType != 'idoso') {
+      if (accountType == 'family' || accountType == 'caregiver') {
         await completePendingEmailRegistration();
       }
 
@@ -356,20 +376,6 @@ class AuthService {
         throw error;
       }
     }
-  }
-
-  /// Pede o link de redefinição de senha do idoso a partir do código ELD.
-  /// O link vai para a caixa de suporte (veja [RecoveryConfig]).
-  Future<void> sendElderPasswordReset(String elderCode) async {
-    if (!RecoveryConfig.isElderRecoveryConfigured) {
-      throw Exception(
-        'A recuperação de senha do idoso ainda não foi configurada.',
-      );
-    }
-
-    final email = AuthRegister.elderAuthEmail(elderCode);
-
-    await _auth.sendPasswordResetEmail(email: email);
   }
 
   String? get currentUserEmail => _auth.currentUser?.email;

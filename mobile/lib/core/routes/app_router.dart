@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/models/auth_arguments.dart';
+import '../../features/auth/models/account_type.dart';
 import '../../features/auth/pages/elder_login_page.dart';
+import '../../features/auth/pages/elder_password_reset_page.dart';
 import '../../features/auth/pages/family_link_page.dart';
 import '../../features/auth/pages/forgot_password_page.dart';
 import '../../features/auth/pages/login_page.dart';
 import '../../features/auth/pages/register_page.dart';
 import '../../features/auth/pages/verify_email_page.dart';
+import '../../features/auth/models/elder_password_reset_request.dart';
 import '../../features/auri/pages/auri_page.dart';
 import '../../features/chat/pages/chat_page.dart';
 import '../../features/chat/pages/conversation_page.dart';
@@ -15,6 +18,7 @@ import '../../features/home/caregiver/caregiver_home_page.dart';
 import '../../features/home/elder/elder_home_page.dart';
 import '../../features/home/family/family_home_page.dart';
 import '../../features/menu/pages/menu_page.dart';
+import '../../features/notifications/pages/password_reset_approval_page.dart';
 import '../../features/onboarding/models/onboarding_arguments.dart';
 import '../../features/onboarding/pages/onboarding_page.dart';
 import '../../features/onboarding/pages/splash_page.dart';
@@ -28,6 +32,7 @@ import '../../features/reports/pages/report_type_page.dart';
 import '../../features/reports/models/report_draft.dart';
 import '../../features/routine/pages/routine_page.dart';
 import '../../features/settings/pages/settings_page.dart';
+import '../../features/support/pages/support_home_page.dart';
 import '../../shared/widgets/main_navigation_shell.dart';
 import 'route_names.dart';
 
@@ -61,7 +66,11 @@ class AppRouter {
       GoRoute(
         path: RouteNames.register,
         redirect: (context, state) {
-          return state.extra is AuthArguments ? null : RouteNames.onboarding;
+          final arguments = state.extra;
+          return arguments is AuthArguments &&
+                  arguments.accountType != AccountType.support
+              ? null
+              : RouteNames.onboarding;
         },
         builder: (context, state) {
           return RegisterPage(arguments: state.extra as AuthArguments);
@@ -81,12 +90,36 @@ class AppRouter {
         builder: (context, state) => const VerifyEmailPage(),
       ),
       GoRoute(
+        path: RouteNames.supportHome,
+        builder: (context, state) => const SupportHomePage(),
+      ),
+      GoRoute(
         path: RouteNames.forgotPassword,
         redirect: (context, state) {
-          return state.extra is AuthArguments ? null : RouteNames.onboarding;
+          final arguments = state.extra;
+          return arguments is AuthArguments &&
+                  arguments.accountType != AccountType.support
+              ? null
+              : RouteNames.onboarding;
         },
         builder: (context, state) {
           return ForgotPasswordPage(arguments: state.extra as AuthArguments);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.elderPasswordReset,
+        builder: (context, state) {
+          return ElderPasswordResetPage(
+            request: state.extra as ElderPasswordResetRequest,
+          );
+        },
+      ),
+      GoRoute(
+        path: RouteNames.passwordResetApproval,
+        builder: (context, state) {
+          return PasswordResetApprovalPage(
+            requestId: state.pathParameters['requestId']!,
+          );
         },
       ),
       GoRoute(

@@ -252,6 +252,8 @@ Future<bool> _canChatWith(
             familyId: recipientId,
             institutionId: currentUser.institutionId,
           );
+    case AccountType.support:
+      return false;
   }
 }
 

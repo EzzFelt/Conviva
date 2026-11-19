@@ -24,7 +24,15 @@ class NotificationCenterButtonWidget extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifications = ref.watch(notificationsProvider).asData?.value ?? [];
-    final unreadCount = notifications.where((item) => !item.isRead).length;
+    final recoveryRequests =
+        ref.watch(recoveryApprovalNotificationsProvider).asData?.value ?? [];
+    final recoveryDeliveries =
+        ref.watch(recoveryDeliveryNotificationsProvider).asData?.value ?? [];
+    final unreadCount = [
+      ...notifications,
+      ...recoveryRequests,
+      ...recoveryDeliveries,
+    ].where((item) => !item.isRead).length;
 
     return NotificationButtonWidget(
       notificationCount: unreadCount,
@@ -50,7 +58,10 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
   /// Abrir a lista já conta como visualizar: marca tudo que está não lido.
   void _markVisibleAsRead(List<AppNotification> items) {
     final unread = items
-        .where((item) => !item.isRead && !_markedIds.contains(item.id))
+        .where(
+          (item) =>
+              item.isPersisted && !item.isRead && !_markedIds.contains(item.id),
+        )
         .map((item) => item.id)
         .toList();
     if (unread.isEmpty) return;
@@ -68,15 +79,14 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
           notificationIds: unread,
         );
       } catch (error) {
-        debugPrint('Não foi possível marcar as notificações como lidas: $error');
+        debugPrint(
+          'Não foi possível marcar as notificações como lidas: $error',
+        );
       }
     });
   }
 
-  void _openNotification(
-    BuildContext context,
-    AppNotification notification,
-  ) {
+  void _openNotification(BuildContext context, AppNotification notification) {
     Navigator.of(context).pop();
 
     final path = switch (notification.type) {
@@ -84,10 +94,15 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
         '/chat/${Uri.encodeComponent(notification.chatId!)}',
       AppNotificationType.task when notification.elderId != null =>
         '/routine/${Uri.encodeComponent(notification.elderId!)}',
+      AppNotificationType.passwordReset when notification.requestId != null =>
+        '/password-reset/approval/'
+            '${Uri.encodeComponent(notification.requestId!)}',
       _ => null,
     };
 
-    if (path != null) context.go(path);
+    if (path != null) {
+      context.go(path, extra: notification.elderName);
+    }
   }
 
   @override
@@ -96,50 +111,62 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
     final notifications = ref.watch(notificationsProvider);
+    final recoveryRequests = ref.watch(recoveryApprovalNotificationsProvider);
+    final recoveryDeliveries = ref.watch(recoveryDeliveryNotificationsProvider);
 
-    return notifications.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, _) => Text(
+    if (notifications.isLoading ||
+        recoveryRequests.isLoading ||
+        recoveryDeliveries.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (notifications.hasError ||
+        recoveryRequests.hasError ||
+        recoveryDeliveries.hasError) {
+      return Text(
         'Não foi possível carregar as notificações.',
         style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.error),
-      ),
-      data: (items) {
-        _markVisibleAsRead(items);
+      );
+    }
 
-        if (items.isEmpty) {
-          return Padding(
-            padding: EdgeInsets.symmetric(vertical: sizes.xl),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.notifications_none_rounded,
-                  size: sizes.icon(sizes.xxl),
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                SizedBox(height: sizes.md),
-                Text(
-                  'Você ainda não tem notificações.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodyLarge,
-                ),
-              ],
-            ),
-          );
-        }
+    final items = [
+      ...?notifications.asData?.value,
+      ...?recoveryRequests.asData?.value,
+      ...?recoveryDeliveries.asData?.value,
+    ]..sort((first, second) => second.createdAt.compareTo(first.createdAt));
+    _markVisibleAsRead(items);
 
-        return Column(
+    if (items.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(vertical: sizes.xl),
+        child: Column(
           children: [
-            for (var index = 0; index < items.length; index++) ...[
-              _NotificationTile(
-                notification: items[index],
-                isNew: _highlightedIds.contains(items[index].id),
-                onTap: () => _openNotification(context, items[index]),
-              ),
-              if (index < items.length - 1) SizedBox(height: sizes.sm),
-            ],
+            Icon(
+              Icons.notifications_none_rounded,
+              size: sizes.icon(sizes.xxl),
+              color: colorScheme.onSurfaceVariant,
+            ),
+            SizedBox(height: sizes.md),
+            Text(
+              'Você ainda não tem notificações.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyLarge,
+            ),
           ],
-        );
-      },
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        for (var index = 0; index < items.length; index++) ...[
+          _NotificationTile(
+            notification: items[index],
+            isNew: _highlightedIds.contains(items[index].id),
+            onTap: () => _openNotification(context, items[index]),
+          ),
+          if (index < items.length - 1) SizedBox(height: sizes.sm),
+        ],
+      ],
     );
   }
 }
@@ -162,7 +189,11 @@ class _NotificationTile extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final sizes = context.appSizes;
-    final isTask = notification.type == AppNotificationType.task;
+    final icon = switch (notification.type) {
+      AppNotificationType.message => Icons.chat_rounded,
+      AppNotificationType.task => Icons.alarm_rounded,
+      AppNotificationType.passwordReset => Icons.lock_reset_rounded,
+    };
     final showAsNew = isNew || !notification.isRead;
 
     return Material(
@@ -178,7 +209,7 @@ class _NotificationTile extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                isTask ? Icons.alarm_rounded : Icons.chat_rounded,
+                icon,
                 color: colorScheme.primary,
                 size: sizes.icon(sizes.lg),
               ),
@@ -207,7 +238,11 @@ class _NotificationTile extends StatelessWidget {
               ),
               if (showAsNew) ...[
                 SizedBox(width: sizes.sm),
-                Icon(Icons.circle, size: sizes.icon(sizes.xs), color: colorScheme.primary),
+                Icon(
+                  Icons.circle,
+                  size: sizes.icon(sizes.xs),
+                  color: colorScheme.primary,
+                ),
               ],
             ],
           ),

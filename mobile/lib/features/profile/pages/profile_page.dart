@@ -31,6 +31,7 @@ import '../models/family_link_request.dart';
 import '../models/institution_summary.dart';
 import '../providers/family_link_requests_provider.dart';
 import '../providers/institution_summary_provider.dart';
+import '../repositories/recovery_contacts_repository.dart';
 
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -522,6 +523,13 @@ class ProfilePage extends ConsumerWidget {
             onUnlink: (link) =>
                 _unlinkFamilyRelationship(context, link.linkId, link.name),
           ),
+          SizedBox(height: sizes.lg),
+          Text(
+            'Responsáveis pela recuperação',
+            style: theme.textTheme.titleMedium,
+          ),
+          SizedBox(height: sizes.sm),
+          const _RecoveryContactsSection(),
         ],
         if (isFamily) ...[
           Text('Parentes Vinculados', style: theme.textTheme.titleMedium),
@@ -1225,6 +1233,205 @@ class _FamilyRequestsSection extends ConsumerWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecoveryContactsSection extends StatefulWidget {
+  const _RecoveryContactsSection();
+
+  @override
+  State<_RecoveryContactsSection> createState() =>
+      _RecoveryContactsSectionState();
+}
+
+class _RecoveryContactsSectionState extends State<_RecoveryContactsSection> {
+  RecoveryContactsConfiguration? _configuration;
+  String? _familyUid;
+  String? _caregiverUid;
+  Object? _loadError;
+  bool _isLoading = true;
+  bool _isSaving = false;
+  bool _hasSaved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+
+    try {
+      final configuration = await RecoveryContactsRepository.instance.load();
+      if (!mounted) return;
+
+      setState(() {
+        _configuration = configuration;
+        _familyUid = configuration.familyUid;
+        _caregiverUid = configuration.caregiverUid;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _save() async {
+    final familyUid = _familyUid;
+    final caregiverUid = _caregiverUid;
+    if (_isSaving || familyUid == null || caregiverUid == null) return;
+
+    setState(() {
+      _isSaving = true;
+      _hasSaved = false;
+    });
+
+    try {
+      await RecoveryContactsRepository.instance.save(
+        familyUid: familyUid,
+        caregiverUid: caregiverUid,
+      );
+      if (!mounted) return;
+      setState(() => _hasSaved = true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.toString().replaceFirst('Bad state: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sizes = context.appSizes;
+    final configuration = _configuration;
+    return Container(
+      padding: EdgeInsets.all(sizes.md),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(sizes.radiusMd),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Escolha um familiar e um cuidador. '
+            'Qualquer um deles poderá aprovar um pedido de recuperação.',
+            style: theme.textTheme.bodySmall,
+          ),
+          SizedBox(height: sizes.md),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (_loadError != null)
+            Column(
+              children: [
+                Text(
+                  'Não foi possível carregar os responsáveis disponíveis.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                TextButton(
+                  onPressed: _load,
+                  child: const Text('Tentar novamente'),
+                ),
+              ],
+            )
+          else if (configuration == null)
+            const SizedBox.shrink()
+          else if (configuration.families.isEmpty ||
+              configuration.caregivers.isEmpty)
+            Text(
+              configuration.families.isEmpty
+                  ? 'É necessário ter um familiar com vínculo ativo.'
+                  : 'Não há cuidador ativo disponível nesta instituição.',
+              style: theme.textTheme.bodySmall,
+            )
+          else ...[
+            DropdownButtonFormField<String>(
+              initialValue:
+                  configuration.families.any(
+                    (contact) => contact.uid == _familyUid,
+                  )
+                  ? _familyUid
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Familiar responsável',
+              ),
+              items: [
+                for (final contact in configuration.families)
+                  DropdownMenuItem(
+                    value: contact.uid,
+                    child: Text(contact.name),
+                  ),
+              ],
+              onChanged: _isSaving
+                  ? null
+                  : (uid) => setState(() {
+                      _familyUid = uid;
+                      _hasSaved = false;
+                    }),
+            ),
+            SizedBox(height: sizes.md),
+            DropdownButtonFormField<String>(
+              initialValue:
+                  configuration.caregivers.any(
+                    (contact) => contact.uid == _caregiverUid,
+                  )
+                  ? _caregiverUid
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Cuidador responsável',
+              ),
+              items: [
+                for (final contact in configuration.caregivers)
+                  DropdownMenuItem(
+                    value: contact.uid,
+                    child: Text(contact.name),
+                  ),
+              ],
+              onChanged: _isSaving
+                  ? null
+                  : (uid) => setState(() {
+                      _caregiverUid = uid;
+                      _hasSaved = false;
+                    }),
+            ),
+            SizedBox(height: sizes.md),
+            ButtonWidget(
+              label: _isSaving ? 'Salvando...' : 'Salvar responsáveis',
+              variant: ButtonVariant.primary,
+              onPressed:
+                  _isSaving || _familyUid == null || _caregiverUid == null
+                  ? null
+                  : _save,
+            ),
+            if (_hasSaved) ...[
+              SizedBox(height: sizes.sm),
+              Text(
+                'Responsáveis salvos.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );

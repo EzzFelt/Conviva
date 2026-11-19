@@ -63,6 +63,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         },
         AccountType.family =>
           conversation.participantType == ConversationParticipantType.elder,
+        AccountType.support => false,
       };
       final requiresFamilyLink =
           (session.accountType == AccountType.elder &&
@@ -125,6 +126,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ),
       ],
       AccountType.family => const [],
+      AccountType.support => const [],
     };
 
     if (filters.isEmpty) return const SizedBox.shrink();

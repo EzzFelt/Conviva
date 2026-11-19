@@ -81,5 +81,6 @@ List<MenuItemModel> menuItemsForAccount(AccountType accountType) {
         illustration: AssetPaths.menuFamilyChat,
       ),
     ],
+    AccountType.support => const [],
   };
 }
