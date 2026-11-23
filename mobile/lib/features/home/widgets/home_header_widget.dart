@@ -4,6 +4,8 @@ import 'package:conviva/shared/utils/first_two_names.dart';
 
 import 'package:conviva/core/constants/app_sizes.dart';
 import '../../notifications/widgets/notification_center_button_widget.dart';
+import '../../tutorial/models/tutorial_step.dart';
+import '../../tutorial/widgets/tutorial_target.dart';
 
 class HomeHeaderWidget extends StatelessWidget {
   const HomeHeaderWidget({
@@ -91,7 +93,10 @@ class HomeHeaderWidget extends StatelessWidget {
             ),
           ),
           SizedBox(width: sizes.sm),
-          const NotificationCenterButtonWidget(),
+          const TutorialTarget(
+            id: TutorialTargetId.homeBell,
+            child: NotificationCenterButtonWidget(),
+          ),
         ],
       ),
     );

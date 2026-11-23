@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../auth/providers/current_user_provider.dart';
 import '../../auth/models/account_type.dart';
@@ -18,14 +21,16 @@ final notificationsProvider = StreamProvider<List<AppNotification>>((
       .collection('users')
       .doc(session.uid)
       .collection('notifications')
-      .orderBy('createdAt', descending: true)
+      .where('read', isEqualTo: false)
       .limit(50)
       .snapshots()
-      .map(
-        (snapshot) => List<AppNotification>.unmodifiable(
-          snapshot.docs.map(AppNotification.fromFirestore),
-        ),
-      );
+      .map((snapshot) {
+        final items = snapshot.docs.map(AppNotification.fromFirestore).toList();
+        items.sort(
+          (first, second) => second.createdAt.compareTo(first.createdAt),
+        );
+        return List<AppNotification>.unmodifiable(items);
+      });
 });
 
 final recoveryApprovalNotificationsProvider =
@@ -123,3 +128,57 @@ Future<void> markNotificationsAsRead({
 
   return batch.commit();
 }
+
+/// Ids de avisos que não existem no Firestore (pedidos de recuperação de
+/// senha) e que o usuário já viu ao abrir o sino. Fica salvo no aparelho.
+final seenNotificationIdsProvider =
+    NotifierProvider<SeenNotificationIdsNotifier, Set<String>>(
+      SeenNotificationIdsNotifier.new,
+    );
+
+class SeenNotificationIdsNotifier extends Notifier<Set<String>> {
+  static const _maxStored = 300;
+
+  @override
+  Set<String> build() {
+    final uid = ref.watch(currentUserProvider).asData?.value?.uid;
+    if (uid != null) unawaited(_load(uid));
+    return const <String>{};
+  }
+
+  String _key(String uid) => 'conviva_seen_notifications_$uid';
+
+  Future<void> _load(String uid) async {
+    try {
+      final stored = await SharedPreferencesAsync().getStringList(_key(uid));
+      if (stored == null || !ref.mounted) return;
+      state = {...stored, ...state};
+    } catch (_) {
+      // Sem a marca local o aviso só aparece de novo; nada grave.
+    }
+  }
+
+  Future<void> markSeen(Iterable<String> ids) async {
+    final uid = ref.read(currentUserProvider).asData?.value?.uid;
+    final fresh = ids.where((id) => !state.contains(id)).toList();
+    if (uid == null || fresh.isEmpty) return;
+
+    final merged = [...state, ...fresh];
+    final trimmed = merged.length > _maxStored
+        ? merged.sublist(merged.length - _maxStored)
+        : merged;
+    state = trimmed.toSet();
+
+    try {
+      await SharedPreferencesAsync().setStringList(_key(uid), trimmed);
+    } catch (_) {}
+  }
+}
+
+/// Avisos informativos (sem ação pendente) que já foram vistos somem do sino.
+bool isNotificationHidden(AppNotification item, Set<String> seen) =>
+    !item.isPersisted && !item.requiresAction && seen.contains(item.id);
+
+/// Conta no selo do sino: persistidos usam `read`; os demais, a marca local.
+bool isNotificationUnread(AppNotification item, Set<String> seen) =>
+    !item.isRead && (item.isPersisted || !seen.contains(item.id));

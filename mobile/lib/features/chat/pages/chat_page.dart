@@ -15,6 +15,8 @@ import '../../auth/providers/current_user_provider.dart';
 import '../models/conversation_preview.dart';
 import '../providers/conversation_previews_provider.dart';
 import '../widgets/conversation_list_item_widget.dart';
+import '../../tutorial/models/tutorial_step.dart';
+import '../../tutorial/widgets/tutorial_target.dart';
 
 enum _ConversationFilter { elder, caregiver, family }
 
@@ -133,26 +135,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     return Padding(
       padding: EdgeInsets.only(bottom: sizes.md),
-      child: Row(
-        children: [
-          for (var index = 0; index < filters.length; index++) ...[
-            if (index > 0) SizedBox(width: sizes.md),
-            _filterButton(
-              label: filters[index].label,
-              value: filters[index].value,
-              selected: filters[index].selected,
-              onPressed: () {
-                setState(() {
-                  if (session.accountType == AccountType.elder) {
-                    _elderFilter = filters[index].value;
-                  } else {
-                    _caregiverFilter = filters[index].value;
-                  }
-                });
-              },
-            ),
+      child: TutorialTarget(
+        id: TutorialTargetId.chatFilters,
+        child: Row(
+          children: [
+            for (var index = 0; index < filters.length; index++) ...[
+              if (index > 0) SizedBox(width: sizes.md),
+              _filterButton(
+                label: filters[index].label,
+                value: filters[index].value,
+                selected: filters[index].selected,
+                onPressed: () {
+                  setState(() {
+                    if (session.accountType == AccountType.elder) {
+                      _elderFilter = filters[index].value;
+                    } else {
+                      _caregiverFilter = filters[index].value;
+                    }
+                  });
+                },
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -277,13 +282,16 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return Column(
           children: [
             for (var index = 0; index < visible.length; index++) ...[
-              ConversationListItemWidget(
-                conversation: visible[index],
-                onPressed: () {
-                  context.go(
-                    RouteNames.chatConversationPath(visible[index].id),
-                  );
-                },
+              _firstConversationTarget(
+                index,
+                ConversationListItemWidget(
+                  conversation: visible[index],
+                  onPressed: () {
+                    context.go(
+                      RouteNames.chatConversationPath(visible[index].id),
+                    );
+                  },
+                ),
               ),
               if (index < visible.length - 1) SizedBox(height: sizes.md),
             ],
@@ -291,6 +299,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         );
       },
     );
+  }
+
+  /// Só a primeira conversa é destacada pelo tutorial.
+  Widget _firstConversationTarget(int index, Widget item) {
+    if (index != 0) return item;
+
+    return TutorialTarget(id: TutorialTargetId.chatConversation, child: item);
   }
 
   String _chatId(String firstId, String secondId) {
@@ -342,15 +357,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextFieldWidget(
-                      controller: _searchController,
-                      hintText: 'Pesquisar contato',
-                      textInputAction: TextInputAction.search,
-                      suffixIcon: Icon(
-                        Icons.search_rounded,
-                        color: Theme.of(context).colorScheme.primary,
+                    TutorialTarget(
+                      id: TutorialTargetId.chatSearch,
+                      child: TextFieldWidget(
+                        controller: _searchController,
+                        hintText: 'Pesquisar contato',
+                        textInputAction: TextInputAction.search,
+                        suffixIcon: Icon(
+                          Icons.search_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        onChanged: (_) => setState(() {}),
                       ),
-                      onChanged: (_) => setState(() {}),
                     ),
                     SizedBox(height: sizes.md),
                     _filters(context, session),

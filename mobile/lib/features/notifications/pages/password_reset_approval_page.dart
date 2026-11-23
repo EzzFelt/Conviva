@@ -210,7 +210,9 @@ class _PasswordResetApprovalPageState extends State<PasswordResetApprovalPage> {
           'rejected' => 'Este pedido já foi recusado.',
           'completed' => 'A equipe de suporte já concluiu este pedido.',
           _ when request.isExpired => 'Este pedido expirou após 24 horas.',
-          _ => 'A primeira resposta de um dos responsáveis encerra o pedido.',
+          _ =>
+            'Uma aprovação encerra o pedido. Se houver dois responsáveis, '
+            'ambos precisam recusar para encerrá-lo.',
         };
 
         return Column(

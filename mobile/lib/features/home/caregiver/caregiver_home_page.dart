@@ -17,12 +17,9 @@ import '../../chat/widgets/chat_avatar_widget.dart';
 import '../../chat/widgets/conversation_card_content.dart';
 import '../../chat/utils/conversation_preview_sorter.dart';
 import '../../routine/models/routine_elder_summary.dart';
-import '../../routine/models/routine_task.dart';
-import '../../routine/models/routine_task_completion.dart';
 import '../../routine/providers/routine_provider.dart';
+import '../../routine/utils/pending_routine_task_finder.dart';
 import '../widgets/home_header_widget.dart';
-
-typedef _PendingRoutineTask = ({RoutineElderSummary elder, RoutineTask task});
 
 class CaregiverHomePage extends ConsumerStatefulWidget {
   const CaregiverHomePage({super.key, this.caregiverData = const {}});
@@ -98,10 +95,14 @@ class _CaregiverHomePageState extends ConsumerState<CaregiverHomePage> {
             taskStates.any((state) => !state.hasValue) ||
             completionStates.any((state) => !state.hasValue)
         ? null
-        : _findPendingRoutineTasks(
+        : findPendingRoutineTasks(
             elders: elderItems,
-            taskStates: taskStates,
-            completionStates: completionStates,
+            tasksByElder: [
+              for (final state in taskStates) state.requireValue,
+            ],
+            completionsByElder: [
+              for (final state in completionStates) state.requireValue,
+            ],
             now: _now,
           );
     final eldersWithoutTasks = pendingTasks == null
@@ -390,7 +391,7 @@ class _PendingRoutineAttention extends StatelessWidget {
     required this.hasError,
   });
 
-  final List<_PendingRoutineTask>? pendingTasks;
+  final List<PendingRoutineTask>? pendingTasks;
   final List<RoutineElderSummary> eldersWithoutTasks;
   final bool hasError;
 
@@ -398,7 +399,6 @@ class _PendingRoutineAttention extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final sizes = context.appSizes;
 
     if (hasError) {
       return _attentionSection(
@@ -438,65 +438,12 @@ class _PendingRoutineAttention extends StatelessWidget {
               color: colorScheme.onSurfaceVariant,
             ),
           )
-        : Column(
-            children: [
-              for (var index = 0; index < visibleTasks.length; index++) ...[
-                InfoCardWidget(
-                  leading: CircleAvatar(
-                    backgroundColor: colorScheme.primary.withValues(alpha: .12),
-                    child: Icon(
-                      Icons.schedule_rounded,
-                      color: colorScheme.primary,
-                      size: sizes.icon(sizes.md),
-                    ),
-                  ),
-                  title: visibleTasks[index].task.title,
-                  subtitle:
-                      '${visibleTasks[index].elder.name} · '
-                      '${visibleTasks[index].task.timeLabel}',
-                  size: InfoCardSize.small,
-                  showGotoButton: true,
-                  onPressed: () => context.go(
-                    RouteNames.routinePath(visibleTasks[index].elder.id),
-                  ),
-                ),
-                if (index < visibleTasks.length - 1) SizedBox(height: sizes.sm),
-              ],
-              for (var index = 0; index < visibleElders.length; index++) ...[
-                InfoCardWidget(
-                  leading: CircleAvatar(
-                    backgroundColor: colorScheme.primary.withValues(alpha: .12),
-                    foregroundImage: visibleElders[index].photoUrl == null
-                        ? null
-                        : profileImageProvider(visibleElders[index].photoUrl),
-                    child: visibleElders[index].photoUrl == null
-                        ? Icon(
-                            Icons.elderly_rounded,
-                            color: colorScheme.primary,
-                            size: sizes.icon(sizes.md),
-                          )
-                        : null,
-                  ),
-                  title: visibleElders[index].name,
-                  subtitle: 'Não possui tarefas na rotina.',
-                  size: InfoCardSize.small,
-                  showGotoButton: true,
-                  onPressed: () => context.go(
-                    RouteNames.routinePath(visibleElders[index].id),
-                  ),
-                ),
-                if (index < visibleElders.length - 1 || visibleTasks.isNotEmpty)
-                  SizedBox(height: sizes.sm),
-              ],
-              if (attentionCount > visibleTasks.length + visibleElders.length)
-                Align(
-                  alignment: Alignment.center,
-                  child: TextButton(
-                    onPressed: () => context.go(RouteNames.routine),
-                    child: const Text('Ver todas'),
-                  ),
-                ),
-            ],
+        : _attentionCards(
+            context,
+            visibleTasks: visibleTasks,
+            visibleElders: visibleElders,
+            remainingCount:
+                attentionCount - visibleTasks.length - visibleElders.length,
           );
 
     return _attentionSection(
@@ -504,6 +451,77 @@ class _PendingRoutineAttention extends StatelessWidget {
       title: 'Requer sua atenção',
       count: attentionCount,
       content: taskList,
+    );
+  }
+
+  Widget _attentionCards(
+    BuildContext context, {
+    required List<PendingRoutineTask> visibleTasks,
+    required List<RoutineElderSummary> visibleElders,
+    required int remainingCount,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final sizes = context.appSizes;
+    final cards = <Widget>[
+      for (final pendingTask in visibleTasks)
+        InfoCardWidget(
+          leading: CircleAvatar(
+            backgroundColor: colorScheme.primary.withValues(alpha: .12),
+            child: Icon(
+              Icons.schedule_rounded,
+              color: colorScheme.primary,
+              size: sizes.icon(sizes.md),
+            ),
+          ),
+          title: pendingTask.task.title,
+          subtitle:
+              '${pendingTask.elder.name} · ${pendingTask.task.timeLabel}',
+          size: InfoCardSize.small,
+          showGotoButton: true,
+          onPressed: () =>
+              context.go(RouteNames.routinePath(pendingTask.elder.id)),
+        ),
+      for (final elder in visibleElders)
+        InfoCardWidget(
+          leading: CircleAvatar(
+            backgroundColor: colorScheme.primary.withValues(alpha: .12),
+            foregroundImage: elder.photoUrl == null
+                ? null
+                : profileImageProvider(elder.photoUrl),
+            child: elder.photoUrl == null
+                ? Icon(
+                    Icons.elderly_rounded,
+                    color: colorScheme.primary,
+                    size: sizes.icon(sizes.md),
+                  )
+                : null,
+          ),
+          title: elder.name,
+          subtitle: 'Não possui tarefas na rotina.',
+          size: InfoCardSize.small,
+          showGotoButton: true,
+          onPressed: () => context.go(RouteNames.routinePath(elder.id)),
+        ),
+    ];
+
+    return Column(
+      children: [
+        for (var index = 0; index < cards.length; index++) ...[
+          cards[index],
+          if (index < cards.length - 1) SizedBox(height: sizes.sm),
+        ],
+        if (remainingCount > 0) ...[
+          SizedBox(height: sizes.sm),
+          Align(
+            alignment: Alignment.center,
+            child: TextButton(
+              onPressed: () => context.go(RouteNames.pendingRoutine),
+              child: const Text('Ver todas'),
+            ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -558,42 +576,4 @@ class _PendingRoutineAttention extends StatelessWidget {
       ],
     );
   }
-}
-
-List<_PendingRoutineTask> _findPendingRoutineTasks({
-  required List<RoutineElderSummary> elders,
-  required List<AsyncValue<List<RoutineTask>>> taskStates,
-  required List<AsyncValue<List<RoutineTaskCompletion>>> completionStates,
-  required DateTime now,
-}) {
-  final today = RoutineTask.dateOnly(now);
-  final pendingTasks = <_PendingRoutineTask>[];
-
-  for (var index = 0; index < elders.length; index++) {
-    final elder = elders[index];
-    final completedIds = completionStates[index].requireValue
-        .map((completion) => completion.id)
-        .toSet();
-
-    for (final task in taskStates[index].requireValue) {
-      if (!task.occursOn(today) || task.startOn(today).isAfter(now)) {
-        continue;
-      }
-
-      final completionId = RoutineTaskCompletion.documentIdFor(
-        taskId: task.id,
-        occurrenceDate: today,
-        taskWasRecurring: task.repeatWeekly,
-      );
-      if (!completedIds.contains(completionId)) {
-        pendingTasks.add((elder: elder, task: task));
-      }
-    }
-  }
-
-  pendingTasks.sort(
-    (first, second) =>
-        first.task.startOn(today).compareTo(second.task.startOn(today)),
-  );
-  return pendingTasks;
 }

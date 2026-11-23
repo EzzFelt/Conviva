@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_sizes.dart';
+import '../../features/tutorial/models/tutorial_step.dart';
+import '../../features/tutorial/widgets/tutorial_target.dart';
 
 class MainNavigationItem {
   const MainNavigationItem({
@@ -48,6 +50,19 @@ class MainNavigationBar extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final List<MainNavigationItem> items;
 
+  static const _tutorialTargets = [
+    TutorialTargetId.navHome,
+    TutorialTargetId.navMenu,
+    TutorialTargetId.navProfile,
+    TutorialTargetId.navSettings,
+  ];
+
+  Widget _tutorialTarget(int index, Widget child) {
+    if (index >= _tutorialTargets.length) return child;
+
+    return TutorialTarget(id: _tutorialTargets[index], child: child);
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -61,69 +76,75 @@ class MainNavigationBar extends StatelessWidget {
       padding: EdgeInsets.only(
         top: sizes.lg,
       ),
-      child: Material(
-        color: AppColors.navigationBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: borderRadius,
-          side: const BorderSide(color: AppColors.navigationBorder),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: SafeArea(
-          top: false,
-          minimum: EdgeInsets.symmetric(horizontal: sizes.sm),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minHeight: sizes.xxl + sizes.xl + sizes.sm,
-            ),
-            child: Row(
-              children: List.generate(items.length, (index) {
-                final item = items[index];
-                final isSelected = index == currentIndex;
-                // Figma: item ativo em amarelo, demais em cinza.
-                final color = isSelected
-                    ? context.appGradientColors.bottom
-                    : AppColors.navigationInactive;
+      child: TutorialTarget(
+        id: TutorialTargetId.navBar,
+        child: Material(
+          color: AppColors.navigationBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: borderRadius,
+            side: const BorderSide(color: AppColors.navigationBorder),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: SafeArea(
+            top: false,
+            minimum: EdgeInsets.symmetric(horizontal: sizes.sm),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: sizes.xxl + sizes.xl + sizes.sm,
+              ),
+              child: Row(
+                children: List.generate(items.length, (index) {
+                  final item = items[index];
+                  final isSelected = index == currentIndex;
+                  // Figma: item ativo em amarelo, demais em cinza.
+                  final color = isSelected
+                      ? context.appGradientColors.bottom
+                      : AppColors.navigationInactive;
 
-                return Expanded(
-                  child: Semantics(
-                    button: true,
-                    selected: isSelected,
-                    label: item.label,
-                    excludeSemantics: true,
-                    child: InkWell(
-                      onTap: () => onDestinationSelected(index),
-                      borderRadius: BorderRadius.circular(sizes.radiusMd),
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: sizes.sm),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              item.icon,
-                              size: sizes.icon(sizes.xl),
-                              color: color,
-                              fill: 1,
+                  return Expanded(
+                    child: _tutorialTarget(
+                      index,
+                      Semantics(
+                        button: true,
+                        selected: isSelected,
+                        label: item.label,
+                        excludeSemantics: true,
+                        child: InkWell(
+                          onTap: () => onDestinationSelected(index),
+                          borderRadius: BorderRadius.circular(sizes.radiusMd),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: sizes.sm),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  item.icon,
+                                  size: sizes.icon(sizes.xl),
+                                  color: color,
+                                  fill: 1,
+                                ),
+                                SizedBox(height: sizes.xs),
+                                Text(
+                                  item.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: color,
+                                    fontFamily: 'BeVietnamPro',
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ),
-                            SizedBox(height: sizes.xs),
-                            Text(
-                              item.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: color,
-                                fontFamily: 'BeVietnamPro',
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }),
+                  );
+                }),
+              ),
             ),
           ),
         ),

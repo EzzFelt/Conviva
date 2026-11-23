@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/models/account_type.dart';
 import '../../auth/models/user_session.dart';
 import '../../auth/providers/current_user_provider.dart';
+import '../../../core/services/push_relay_service.dart';
 import '../../../core/utils/family_link_id.dart';
 import '../models/chat_message.dart';
 import '../models/conversation_preview.dart';
@@ -356,6 +359,15 @@ Future<void> sendMessage({
     'unreadCount.$recipientId': FieldValue.increment(1),
   });
   await batch.commit();
+
+  // Avisa o relé gratuito para empurrar o push ao destinatário (app fechado).
+  // Não bloqueia nem derruba o envio se falhar.
+  unawaited(
+    PushRelayService.notifyNewMessage(
+      chatId: chatId,
+      messageId: messageReference.id,
+    ),
+  );
 }
 
 Future<void> markAsRead({

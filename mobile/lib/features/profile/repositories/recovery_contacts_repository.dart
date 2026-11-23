@@ -103,10 +103,11 @@ class RecoveryContactsRepository {
     );
 
     final elderLinkCode = elder['elderLinkCode']?.toString();
-    if (familyUid != null &&
-        caregiverUid != null &&
-        families.any((contact) => contact.uid == familyUid) &&
-        caregivers.any((contact) => contact.uid == caregiverUid) &&
+    if ((familyUid != null || caregiverUid != null) &&
+        (familyUid == null ||
+            families.any((contact) => contact.uid == familyUid)) &&
+        (caregiverUid == null ||
+            caregivers.any((contact) => contact.uid == caregiverUid)) &&
         elderLinkCode != null) {
       await _syncLookup(
         elderUid: elderUid,
@@ -121,21 +122,26 @@ class RecoveryContactsRepository {
   }
 
   Future<void> save({
-    required String familyUid,
-    required String caregiverUid,
+    String? familyUid,
+    String? caregiverUid,
   }) async {
     final elderUid = _auth.currentUser?.uid;
     if (elderUid == null) {
       throw StateError('Entre na conta do idoso para escolher responsáveis.');
     }
+    if (familyUid == null && caregiverUid == null) {
+      throw StateError('Selecione ao menos um responsável.');
+    }
 
     final configuration = await load();
-    if (!configuration.families.any((contact) => contact.uid == familyUid)) {
+    if (familyUid != null &&
+        !configuration.families.any((contact) => contact.uid == familyUid)) {
       throw StateError('Selecione um familiar com vínculo ativo.');
     }
-    if (!configuration.caregivers.any(
-      (contact) => contact.uid == caregiverUid,
-    )) {
+    if (caregiverUid != null &&
+        !configuration.caregivers.any(
+          (contact) => contact.uid == caregiverUid,
+        )) {
       throw StateError('Selecione um cuidador ativo da instituição do idoso.');
     }
 
@@ -177,8 +183,8 @@ class RecoveryContactsRepository {
     required String elderUid,
     required String institutionId,
     required String elderLinkCode,
-    required String familyUid,
-    required String caregiverUid,
+    required String? familyUid,
+    required String? caregiverUid,
   }) async {
     final lookupId = RecoveryConfig.elderRecoveryLookupId(
       AuthRegister.normalizeElderCode(elderLinkCode),

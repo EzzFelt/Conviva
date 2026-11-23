@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/routes/route_names.dart';
 import '../../../core/services/auth_service.dart';
+import '../../tutorial/services/elder_tutorial_storage.dart';
 import '../models/account_type.dart';
 import '../models/user_session.dart';
 
@@ -28,7 +29,16 @@ class AuthenticatedUserNavigator {
 
     switch (session.accountType) {
       case AccountType.elder:
-        context.go(RouteNames.elderHome);
+        // Idoso recém-cadastrado ainda precisa escolher se quer o tutorial.
+        final tutorialPending = await ElderTutorialStorage.isPending(
+          session.uid,
+        );
+
+        if (!context.mounted) return;
+
+        context.go(
+          tutorialPending ? RouteNames.tutorialOffer : RouteNames.elderHome,
+        );
         return;
 
       case AccountType.caregiver:

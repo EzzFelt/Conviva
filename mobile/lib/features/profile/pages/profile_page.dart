@@ -32,6 +32,8 @@ import '../models/institution_summary.dart';
 import '../providers/family_link_requests_provider.dart';
 import '../providers/institution_summary_provider.dart';
 import '../repositories/recovery_contacts_repository.dart';
+import '../../tutorial/models/tutorial_step.dart';
+import '../../tutorial/widgets/tutorial_target.dart';
 
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -464,14 +466,17 @@ class ProfilePage extends ConsumerWidget {
           ],
         ],
       ),
-      trailing: IconButton.filled(
-        tooltip: 'Editar informações',
-        onPressed: () => _editProfile(context, session),
-        style: IconButton.styleFrom(
-          backgroundColor: colorScheme.primary,
-          foregroundColor: colorScheme.onPrimary,
+      trailing: TutorialTarget(
+        id: TutorialTargetId.profileEdit,
+        child: IconButton.filled(
+          tooltip: 'Editar informações',
+          onPressed: () => _editProfile(context, session),
+          style: IconButton.styleFrom(
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+          ),
+          icon: Icon(Icons.edit_rounded, size: sizes.icon(sizes.md)),
         ),
-        icon: Icon(Icons.edit_rounded, size: sizes.icon(sizes.md)),
       ),
     );
   }
@@ -524,31 +529,67 @@ class ProfilePage extends ConsumerWidget {
                 _unlinkFamilyRelationship(context, link.linkId, link.name),
           ),
           SizedBox(height: sizes.lg),
-          Text(
-            'Responsáveis pela recuperação',
-            style: theme.textTheme.titleMedium,
+          TutorialTarget(
+            id: TutorialTargetId.profileRecovery,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Responsáveis pela recuperação',
+                  style: theme.textTheme.titleMedium,
+                ),
+                SizedBox(height: sizes.sm),
+                const _RecoveryContactsSection(),
+              ],
+            ),
           ),
-          SizedBox(height: sizes.sm),
-          const _RecoveryContactsSection(),
+          SizedBox(height: sizes.lg),
         ],
         if (isFamily) ...[
           Text('Parentes Vinculados', style: theme.textTheme.titleMedium),
           SizedBox(height: sizes.sm),
           _linkedEldersSection(context, ref, institutionState, session),
         ] else ...[
-          Text('Instituto', style: theme.textTheme.titleMedium),
-          SizedBox(height: sizes.sm),
-          _institutionCard(context, institutionState),
+          TutorialTarget(
+            id: TutorialTargetId.profileInstitute,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Instituto', style: theme.textTheme.titleMedium),
+                SizedBox(height: sizes.sm),
+                _institutionCard(context, institutionState),
+              ],
+            ),
+          ),
         ],
         SizedBox(height: sizes.lg),
-        Text('Suas informações', style: theme.textTheme.titleMedium),
-        SizedBox(height: sizes.sm),
-        _informationCard(context, ref, session),
+        TutorialTarget(
+          id: TutorialTargetId.profileInfo,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Suas informações', style: theme.textTheme.titleMedium),
+              SizedBox(height: sizes.sm),
+              _informationCard(context, ref, session),
+            ],
+          ),
+        ),
         if (session.accountType == AccountType.elder) ...[
           SizedBox(height: sizes.lg),
-          Text('Meu código de acesso', style: theme.textTheme.titleMedium),
-          SizedBox(height: sizes.sm),
-          _AccessCodeCard(code: session.elderLinkCode),
+          TutorialTarget(
+            id: TutorialTargetId.profileAccessCode,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Meu código de acesso',
+                  style: theme.textTheme.titleMedium,
+                ),
+                SizedBox(height: sizes.sm),
+                _AccessCodeCard(code: session.elderLinkCode),
+              ],
+            ),
+          ),
         ],
       ],
     );
@@ -1027,60 +1068,63 @@ class _ActiveFamilyLinksSection extends ConsumerWidget {
 
     return Padding(
       padding: EdgeInsets.only(bottom: sizes.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Familiares vinculados', style: theme.textTheme.titleMedium),
-          SizedBox(height: sizes.sm),
-          familiesState.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, _) => Text(
-              'Não foi possível carregar os familiares vinculados.',
-              style: theme.textTheme.bodySmall,
-            ),
-            data: (families) {
-              if (families.isEmpty) {
-                return Text(
-                  'Nenhum familiar vinculado ainda.',
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                );
-              }
+      child: TutorialTarget(
+        id: TutorialTargetId.profileFamilyLinks,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Familiares vinculados', style: theme.textTheme.titleMedium),
+            SizedBox(height: sizes.sm),
+            familiesState.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) => Text(
+                'Não foi possível carregar os familiares vinculados.',
+                style: theme.textTheme.bodySmall,
+              ),
+              data: (families) {
+                if (families.isEmpty) {
+                  return Text(
+                    'Nenhum familiar vinculado ainda.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  );
+                }
 
-              return Column(
-                children: [
-                  for (final family in families)
-                    Padding(
-                      padding: EdgeInsets.only(bottom: sizes.sm),
-                      child: InfoCardWidget(
-                        size: InfoCardSize.small,
-                        borderRadius: BorderRadius.circular(sizes.radiusMd),
-                        leading: CircleAvatar(
-                          foregroundImage: profileImageProvider(
-                            family.photoUrl,
+                return Column(
+                  children: [
+                    for (final family in families)
+                      Padding(
+                        padding: EdgeInsets.only(bottom: sizes.sm),
+                        child: InfoCardWidget(
+                          size: InfoCardSize.small,
+                          borderRadius: BorderRadius.circular(sizes.radiusMd),
+                          leading: CircleAvatar(
+                            foregroundImage: profileImageProvider(
+                              family.photoUrl,
+                            ),
+                            child: const Icon(Icons.person_rounded),
                           ),
-                          child: const Icon(Icons.person_rounded),
-                        ),
-                        content: Text(
-                          family.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall,
-                        ),
-                        trailing: IconButton(
-                          tooltip: 'Desvincular familiar',
-                          onPressed: () => onUnlink(family),
-                          icon: const Icon(Icons.link_off_rounded),
+                          content: Text(
+                            family.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall,
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Desvincular familiar',
+                            onPressed: () => onUnlink(family),
+                            icon: const Icon(Icons.link_off_rounded),
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1274,8 +1318,16 @@ class _RecoveryContactsSectionState extends State<_RecoveryContactsSection> {
 
       setState(() {
         _configuration = configuration;
-        _familyUid = configuration.familyUid;
-        _caregiverUid = configuration.caregiverUid;
+        _familyUid = configuration.families.any(
+          (contact) => contact.uid == configuration.familyUid,
+        )
+            ? configuration.familyUid
+            : null;
+        _caregiverUid = configuration.caregivers.any(
+          (contact) => contact.uid == configuration.caregiverUid,
+        )
+            ? configuration.caregiverUid
+            : null;
         _isLoading = false;
       });
     } catch (error) {
@@ -1290,7 +1342,7 @@ class _RecoveryContactsSectionState extends State<_RecoveryContactsSection> {
   Future<void> _save() async {
     final familyUid = _familyUid;
     final caregiverUid = _caregiverUid;
-    if (_isSaving || familyUid == null || caregiverUid == null) return;
+    if (_isSaving || (familyUid == null && caregiverUid == null)) return;
 
     setState(() {
       _isSaving = true;
@@ -1321,6 +1373,15 @@ class _RecoveryContactsSectionState extends State<_RecoveryContactsSection> {
     final theme = Theme.of(context);
     final sizes = context.appSizes;
     final configuration = _configuration;
+    final canSave =
+        configuration != null &&
+        (configuration.families.any(
+              (contact) => contact.uid == _familyUid,
+            ) ||
+            configuration.caregivers.any(
+              (contact) => contact.uid == _caregiverUid,
+            ));
+
     return Container(
       padding: EdgeInsets.all(sizes.md),
       decoration: BoxDecoration(
@@ -1332,8 +1393,9 @@ class _RecoveryContactsSectionState extends State<_RecoveryContactsSection> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Escolha um familiar e um cuidador. '
-            'Qualquer um deles poderá aprovar um pedido de recuperação.',
+            'Escolha ao menos um responsável: um familiar vinculado e/ou um '
+            'cuidador ativo. Qualquer responsável selecionado poderá aprovar '
+            'um pedido de recuperação.',
             style: theme.textTheme.bodySmall,
           ),
           SizedBox(height: sizes.md),
@@ -1354,72 +1416,96 @@ class _RecoveryContactsSectionState extends State<_RecoveryContactsSection> {
             )
           else if (configuration == null)
             const SizedBox.shrink()
-          else if (configuration.families.isEmpty ||
+          else if (configuration.families.isEmpty &&
               configuration.caregivers.isEmpty)
             Text(
-              configuration.families.isEmpty
-                  ? 'É necessário ter um familiar com vínculo ativo.'
-                  : 'Não há cuidador ativo disponível nesta instituição.',
+              'Vincule um familiar ou aguarde a disponibilização de um '
+              'cuidador ativo para configurar a recuperação.',
               style: theme.textTheme.bodySmall,
             )
           else ...[
-            DropdownButtonFormField<String>(
-              initialValue:
-                  configuration.families.any(
-                    (contact) => contact.uid == _familyUid,
-                  )
-                  ? _familyUid
-                  : null,
-              decoration: const InputDecoration(
-                labelText: 'Familiar responsável',
+            if (configuration.families.isEmpty)
+              Padding(
+                padding: EdgeInsets.only(bottom: sizes.md),
+                child: Text(
+                  'Nenhum familiar vinculado. Você pode escolher um cuidador.',
+                  style: theme.textTheme.bodySmall,
+                ),
               ),
-              items: [
-                for (final contact in configuration.families)
-                  DropdownMenuItem(
-                    value: contact.uid,
-                    child: Text(contact.name),
+            if (configuration.families.isNotEmpty) ...[
+              DropdownButtonFormField<String>(
+                initialValue:
+                    configuration.families.any(
+                      (contact) => contact.uid == _familyUid,
+                    )
+                    ? _familyUid
+                    : '',
+                decoration: const InputDecoration(
+                  labelText: 'Familiar responsável',
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('Não selecionar familiar'),
                   ),
-              ],
-              onChanged: _isSaving
-                  ? null
-                  : (uid) => setState(() {
-                      _familyUid = uid;
-                      _hasSaved = false;
-                    }),
-            ),
-            SizedBox(height: sizes.md),
-            DropdownButtonFormField<String>(
-              initialValue:
-                  configuration.caregivers.any(
-                    (contact) => contact.uid == _caregiverUid,
-                  )
-                  ? _caregiverUid
-                  : null,
-              decoration: const InputDecoration(
-                labelText: 'Cuidador responsável',
+                  for (final contact in configuration.families)
+                    DropdownMenuItem(
+                      value: contact.uid,
+                      child: Text(contact.name),
+                    ),
+                ],
+                onChanged: _isSaving
+                    ? null
+                    : (uid) => setState(() {
+                        _familyUid = uid == null || uid.isEmpty ? null : uid;
+                        _hasSaved = false;
+                      }),
               ),
-              items: [
-                for (final contact in configuration.caregivers)
-                  DropdownMenuItem(
-                    value: contact.uid,
-                    child: Text(contact.name),
+              if (configuration.caregivers.isNotEmpty)
+                SizedBox(height: sizes.md),
+            ],
+            if (configuration.caregivers.isEmpty)
+              Padding(
+                padding: EdgeInsets.only(top: sizes.md),
+                child: Text(
+                  'Não há cuidador ativo. Você pode escolher um familiar.',
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+            if (configuration.caregivers.isNotEmpty)
+              DropdownButtonFormField<String>(
+                initialValue:
+                    configuration.caregivers.any(
+                      (contact) => contact.uid == _caregiverUid,
+                    )
+                    ? _caregiverUid
+                    : '',
+                decoration: const InputDecoration(
+                  labelText: 'Cuidador responsável',
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('Não selecionar cuidador'),
                   ),
-              ],
-              onChanged: _isSaving
-                  ? null
-                  : (uid) => setState(() {
-                      _caregiverUid = uid;
-                      _hasSaved = false;
-                    }),
-            ),
+                  for (final contact in configuration.caregivers)
+                    DropdownMenuItem(
+                      value: contact.uid,
+                      child: Text(contact.name),
+                    ),
+                ],
+                onChanged: _isSaving
+                    ? null
+                    : (uid) => setState(() {
+                        _caregiverUid = uid == null || uid.isEmpty ? null : uid;
+                        _hasSaved = false;
+                      }),
+              ),
             SizedBox(height: sizes.md),
             ButtonWidget(
               label: _isSaving ? 'Salvando...' : 'Salvar responsáveis',
-              variant: ButtonVariant.primary,
-              onPressed:
-                  _isSaving || _familyUid == null || _caregiverUid == null
-                  ? null
-                  : _save,
+              variant: ButtonVariant.secondary,
+              onPressed: _isSaving || !canSave ? null : _save,
             ),
             if (_hasSaved) ...[
               SizedBox(height: sizes.sm),

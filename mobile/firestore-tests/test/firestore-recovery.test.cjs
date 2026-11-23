@@ -203,6 +203,72 @@ function deliveryRef(db, id) {
   return doc(db, deliveryCollection, id);
 }
 
+async function configureRecoveryContact({ lookupHash, familyUid, caregiverUid }) {
+  const elderDb = dbFor('elder-1');
+  const batch = writeBatch(elderDb);
+  batch.update(doc(elderDb, 'users', 'elder-1'), {
+    recoveryFamilyUid: familyUid,
+    recoveryCaregiverUid: caregiverUid,
+  });
+  batch.set(doc(elderDb, 'elderRecoveryLookups', lookupHash), {
+    elderUid: 'elder-1',
+    institutionId: 'institution-1',
+    familyUid,
+    caregiverUid,
+  });
+  await assertSucceeds(batch.commit());
+}
+
+async function createRecoveryRequestThroughRules(lookupHash) {
+  const requesterUid = 'anonymous-1';
+  const anonymous = anonymousDb(requesterUid);
+  const lookup = (await getDoc(
+    doc(anonymous, 'elderRecoveryLookups', lookupHash),
+  )).data();
+  const requestReference = doc(collection(anonymous, requestCollection));
+  const proofReference = doc(
+    anonymous,
+    'passwordRecoveryProofs',
+    requestReference.id,
+  );
+  const rateLimitReference = doc(
+    anonymous,
+    'passwordRecoveryRateLimits',
+    lookupHash,
+  );
+  const batch = writeBatch(anonymous);
+  const requestData = {
+    requestId: requestReference.id,
+    lookupHash,
+    requesterUid,
+    elderUid: lookup.elderUid,
+    institutionId: lookup.institutionId,
+    familyUid: lookup.familyUid,
+    caregiverUid: lookup.caregiverUid,
+  };
+  batch.set(proofReference, {
+    ...requestData,
+    createdAt: serverTimestamp(),
+  });
+  batch.set(requestReference, {
+    ...requestData,
+    status: 'pending',
+    familyDecision: 'pending',
+    caregiverDecision: 'pending',
+    linkDeliveredToApprover: false,
+    deliveryForwardedToElder: false,
+    resetEmailRequested: false,
+    createdAt: serverTimestamp(),
+  });
+  batch.set(rateLimitReference, {
+    elderUid: lookup.elderUid,
+    requestId: requestReference.id,
+    lastRequestedAt: serverTimestamp(),
+  });
+  await assertSucceeds(batch.commit());
+  return requestReference.id;
+}
+
 test('elder can replace the selected caregiver using getAfter in the same batch', async () => {
   const elderDb = dbFor('elder-1');
   const batch = writeBatch(elderDb);
@@ -216,6 +282,56 @@ test('elder can replace the selected caregiver using getAfter in the same batch'
     caregiverUid: 'caregiver-2',
   });
   await assertSucceeds(batch.commit());
+});
+
+test('elder can configure a caregiver without a linked family', async () => {
+  await configureRecoveryContact({
+    lookupHash: 'b'.repeat(64),
+    familyUid: null,
+    caregiverUid: 'caregiver-2',
+  });
+});
+
+test('elder can configure a linked family without a caregiver', async () => {
+  await configureRecoveryContact({
+    lookupHash: 'd'.repeat(64),
+    familyUid: 'family-1',
+    caregiverUid: null,
+  });
+});
+
+test('caregiver-only recovery can be requested and approved', async () => {
+  const lookupHash = 'e'.repeat(64);
+  await configureRecoveryContact({
+    lookupHash,
+    familyUid: null,
+    caregiverUid: 'caregiver-2',
+  });
+  const requestId = await createRecoveryRequestThroughRules(lookupHash);
+
+  await assertSucceeds(updateDoc(requestRef(dbFor('caregiver-2'), requestId), {
+    status: 'approved',
+    caregiverDecision: 'approved',
+    caregiverRespondedAt: serverTimestamp(),
+    approvedByUid: 'caregiver-2',
+    approvedByType: 'caregiver',
+  }));
+});
+
+test('a sole family responsible can reject a recovery request', async () => {
+  const lookupHash = 'f'.repeat(64);
+  await configureRecoveryContact({
+    lookupHash,
+    familyUid: 'family-1',
+    caregiverUid: null,
+  });
+  const requestId = await createRecoveryRequestThroughRules(lookupHash);
+
+  await assertSucceeds(updateDoc(requestRef(dbFor('family-1'), requestId), {
+    status: 'rejected',
+    familyDecision: 'rejected',
+    familyRespondedAt: serverTimestamp(),
+  }));
 });
 
 test('family approval wins while caregiver is pending', async () => {
@@ -438,7 +554,7 @@ test('revoked family links and inactive caregiver accounts cannot review request
   ));
 });
 
-test('lookup without both contacts cannot create a recovery request', async () => {
+test('lookup without any responsible cannot create a recovery request', async () => {
   const lookupHash = 'c'.repeat(64);
   await environment.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), 'elderRecoveryLookups', lookupHash), {

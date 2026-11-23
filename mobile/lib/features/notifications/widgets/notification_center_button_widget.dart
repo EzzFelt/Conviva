@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_sizes.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../shared/widgets/app_modal_widget.dart';
 import '../../../shared/widgets/notification_button_widget.dart';
 import '../../auth/providers/current_user_provider.dart';
@@ -28,11 +29,12 @@ class NotificationCenterButtonWidget extends ConsumerWidget {
         ref.watch(recoveryApprovalNotificationsProvider).asData?.value ?? [];
     final recoveryDeliveries =
         ref.watch(recoveryDeliveryNotificationsProvider).asData?.value ?? [];
+    final seen = ref.watch(seenNotificationIdsProvider);
     final unreadCount = [
       ...notifications,
       ...recoveryRequests,
       ...recoveryDeliveries,
-    ].where((item) => !item.isRead).length;
+    ].where((item) => isNotificationUnread(item, seen)).length;
 
     return NotificationButtonWidget(
       notificationCount: unreadCount,
@@ -49,14 +51,16 @@ class _NotificationsList extends ConsumerStatefulWidget {
 }
 
 class _NotificationsListState extends ConsumerState<_NotificationsList> {
-  /// Notificações que estavam não lidas quando a lista foi aberta.
-  /// Continuam destacadas enquanto a lista estiver na tela, mesmo já
-  /// tendo sido marcadas como lidas.
-  final Set<String> _highlightedIds = {};
   final Set<String> _markedIds = {};
+
+  /// O que foi exibido nesta abertura. Ao marcar como lido, o Firestore deixa
+  /// de devolver o item; guardamos aqui para a lista não esvaziar na frente
+  /// do usuário. Ao fechar o sino, tudo isso é descartado e some de vez.
+  final Map<String, AppNotification> _sessionItems = {};
 
   /// Abrir a lista já conta como visualizar: marca tudo que está não lido.
   void _markVisibleAsRead(List<AppNotification> items) {
+    final seen = ref.read(seenNotificationIdsProvider);
     final unread = items
         .where(
           (item) =>
@@ -64,20 +68,40 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
         )
         .map((item) => item.id)
         .toList();
-    if (unread.isEmpty) return;
+    final unseenLocal = items
+        .where(
+          (item) =>
+              !item.isPersisted &&
+              !seen.contains(item.id) &&
+              !_markedIds.contains(item.id),
+        )
+        .map((item) => item.id)
+        .toList();
+    if (unread.isEmpty && unseenLocal.isEmpty) return;
 
-    _highlightedIds.addAll(unread);
-    _markedIds.addAll(unread);
+    _markedIds
+      ..addAll(unread)
+      ..addAll(unseenLocal);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final session = ref.read(currentUserProvider).asData?.value;
       if (session == null) return;
 
       try {
-        await markNotificationsAsRead(
-          userId: session.uid,
-          notificationIds: unread,
-        );
+        if (unseenLocal.isNotEmpty) {
+          await ref
+              .read(seenNotificationIdsProvider.notifier)
+              .markSeen(unseenLocal);
+        }
+        if (unread.isNotEmpty) {
+          await NotificationService.instance.dismissNotifications(unread);
+          await markNotificationsAsRead(
+            userId: session.uid,
+            notificationIds: unread,
+          );
+        }
+        // Remove também os pushes desenhados pelo sistema (app em 2º plano).
+        await NotificationService.instance.clearDeliveredNotifications();
       } catch (error) {
         debugPrint(
           'Não foi possível marcar as notificações como lidas: $error',
@@ -128,12 +152,25 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
       );
     }
 
-    final items = [
+    final seen = ref.watch(seenNotificationIdsProvider);
+    final live = [
       ...?notifications.asData?.value,
       ...?recoveryRequests.asData?.value,
       ...?recoveryDeliveries.asData?.value,
-    ]..sort((first, second) => second.createdAt.compareTo(first.createdAt));
-    _markVisibleAsRead(items);
+    ];
+    _markVisibleAsRead(live);
+
+    for (final item in live) {
+      if (item.isPersisted || !isNotificationHidden(item, seen)) {
+        _sessionItems[item.id] = item;
+      }
+    }
+    final liveIds = live.map((item) => item.id).toSet();
+    final items =
+        _sessionItems.values
+            .where((item) => item.isPersisted || liveIds.contains(item.id))
+            .toList()
+          ..sort((first, second) => second.createdAt.compareTo(first.createdAt));
 
     if (items.isEmpty) {
       return Padding(
@@ -161,7 +198,6 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
         for (var index = 0; index < items.length; index++) ...[
           _NotificationTile(
             notification: items[index],
-            isNew: _highlightedIds.contains(items[index].id),
             onTap: () => _openNotification(context, items[index]),
           ),
           if (index < items.length - 1) SizedBox(height: sizes.sm),
@@ -172,17 +208,10 @@ class _NotificationsListState extends ConsumerState<_NotificationsList> {
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({
-    required this.notification,
-    required this.onTap,
-    this.isNew = false,
-  });
+  const _NotificationTile({required this.notification, required this.onTap});
 
   final AppNotification notification;
   final VoidCallback onTap;
-
-  /// Destaca a notificação como "nova" mesmo depois de marcada como lida.
-  final bool isNew;
 
   @override
   Widget build(BuildContext context) {
@@ -194,7 +223,7 @@ class _NotificationTile extends StatelessWidget {
       AppNotificationType.task => Icons.alarm_rounded,
       AppNotificationType.passwordReset => Icons.lock_reset_rounded,
     };
-    final showAsNew = isNew || !notification.isRead;
+    final showAsNew = !notification.isRead;
 
     return Material(
       color: showAsNew

@@ -46,11 +46,9 @@ void main() {
   test('caregiver validation requires elder caregiver assignment', () {
     expect(
       rules,
-      contains(
-        "get(elderPath).data.get('recoveryCaregiverUid', '') ==\n"
-        "                caregiverUid",
-      ),
+      contains("elderAfter.get('recoveryCaregiverUid', '') == caregiverUid"),
     );
+    expect(rules, contains('function isValidOptionalRecoveryCaregiver'));
   });
 
   test('indexes JSON remains valid and has no duplicate recovery index', () {

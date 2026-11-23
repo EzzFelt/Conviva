@@ -12,6 +12,9 @@ class RouteNames {
   static const passwordResetApproval = '/password-reset/approval/:requestId';
   static const verifyEmail = '/verify-email';
   static const familyLink = '/family-link';
+  static const tutorialOffer = '/tutorial';
+  static const tutorialSetup = '/tutorial/setup';
+  static const tutorialDone = '/tutorial/done';
 
   static const elderHome = '/home/elder';
   static const caregiverHome = '/home/caregiver';
@@ -22,6 +25,7 @@ class RouteNames {
   static const chat = '/chat';
   static const chatConversation = '/chat/:conversationId';
   static const routine = '/routine';
+  static const pendingRoutine = '/routine/pending';
   static const routineDetail = '/routine/:elderId';
   static const profile = '/profile';
   static const settings = '/settings';

@@ -27,6 +27,10 @@ import '../providers/routine_provider.dart';
 import '../widgets/routine_calendar_widget.dart';
 import '../widgets/routine_task_form_modal.dart';
 import '../widgets/routine_view_toggle_widget.dart';
+import '../../tutorial/data/elder_tutorial_steps.dart';
+import '../../tutorial/models/tutorial_step.dart';
+import '../../tutorial/providers/tutorial_provider.dart';
+import '../../tutorial/widgets/tutorial_target.dart';
 
 class RoutinePage extends ConsumerWidget {
   const RoutinePage({super.key, this.elderId});
@@ -293,6 +297,10 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     super.initState();
 
     _selectedDay = RoutineTask.dateOnly(DateTime.now());
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _applyTutorialView(ref.read(tutorialProvider));
+    });
   }
 
   RoutineTaskCreatorRole _creatorRole() {
@@ -771,7 +779,13 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
           SizedBox(height: sizes.md),
         ],
         if (!_showHistory)
-          RoutineViewToggleWidget(value: _viewMode, onChanged: _changeView),
+          TutorialTarget(
+            id: TutorialTargetId.routineToggle,
+            child: RoutineViewToggleWidget(
+              value: _viewMode,
+              onChanged: _changeView,
+            ),
+          ),
         SizedBox(height: sizes.sm),
         Align(
           alignment: Alignment.centerRight,
@@ -785,29 +799,32 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
         ),
         if (!_showHistory && _viewMode == RoutineViewMode.day) ...[
           SizedBox(height: sizes.sm),
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(
-              horizontal: sizes.md,
-              vertical: sizes.sm,
-            ),
-            decoration: BoxDecoration(
-              color: context.appGradientColors.bottom,
-              borderRadius: BorderRadius.circular(sizes.radiusMd),
-              boxShadow: [
-                BoxShadow(
-                  color: colorScheme.shadow.withValues(alpha: .20),
-                  blurRadius: sizes.xs,
-                  offset: Offset(0, sizes.xs / 2),
-                ),
-              ],
-            ),
-            child: Text(
-              _selectedDateLabel(),
-              textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary),
+          TutorialTarget(
+            id: TutorialTargetId.routineDate,
+            child: Container(
+              width: double.infinity,
+              padding: EdgeInsets.symmetric(
+                horizontal: sizes.md,
+                vertical: sizes.sm,
+              ),
+              decoration: BoxDecoration(
+                color: context.appGradientColors.bottom,
+                borderRadius: BorderRadius.circular(sizes.radiusMd),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withValues(alpha: .20),
+                    blurRadius: sizes.xs,
+                    offset: Offset(0, sizes.xs / 2),
+                  ),
+                ],
+              ),
+              child: Text(
+                _selectedDateLabel(),
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(color: colorScheme.onPrimary),
+              ),
             ),
           ),
         ],
@@ -865,23 +882,26 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        NextTaskCard(
-          task: nextTask,
-          sectionTitle: _isToday(_selectedDay)
-              ? 'Sua próxima tarefa:'
-              : 'Primeira tarefa:',
-          emptyMessage: _isToday(_selectedDay)
-              ? 'Nenhuma tarefa restante hoje'
-              : 'Nenhuma tarefa neste dia',
-          onPressed:
-              nextTask != null &&
-                  canEditRoutineTask(
-                    actor: widget.actor,
-                    task: nextTask,
-                    permissions: permissions,
-                  )
-              ? () => _openTaskForm(task: nextTask)
-              : null,
+        TutorialTarget(
+          id: TutorialTargetId.routineNextTask,
+          child: NextTaskCard(
+            task: nextTask,
+            sectionTitle: _isToday(_selectedDay)
+                ? 'Sua próxima tarefa:'
+                : 'Primeira tarefa:',
+            emptyMessage: _isToday(_selectedDay)
+                ? 'Nenhuma tarefa restante hoje'
+                : 'Nenhuma tarefa neste dia',
+            onPressed:
+                nextTask != null &&
+                    canEditRoutineTask(
+                      actor: widget.actor,
+                      task: nextTask,
+                      permissions: permissions,
+                    )
+                ? () => _openTaskForm(task: nextTask)
+                : null,
+          ),
         ),
         if (canCompleteNextTask)
           _completionAction(context, nextTask, permissions),
@@ -893,15 +913,24 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
           ),
           SizedBox(height: sizes.md),
           for (var index = 0; index < remainingTasks.length; index++) ...[
-            _taskCard(context, remainingTasks[index], permissions),
+            if (index == 0)
+              TutorialTarget(
+                id: TutorialTargetId.routineEditTask,
+                child: _taskCard(context, remainingTasks[index], permissions),
+              )
+            else
+              _taskCard(context, remainingTasks[index], permissions),
             if (index < remainingTasks.length - 1) SizedBox(height: sizes.md),
           ],
         ],
         SizedBox(height: sizes.xl),
         if (canCreate)
-          AddNewButtonWidget(
-            label: 'Adicionar tarefa',
-            onPressed: () => _openTaskForm(),
+          TutorialTarget(
+            id: TutorialTargetId.routineAddTask,
+            child: AddNewButtonWidget(
+              label: 'Adicionar tarefa',
+              onPressed: () => _openTaskForm(),
+            ),
           )
         else
           Container(
@@ -918,6 +947,29 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
           ),
       ],
     );
+  }
+
+  /// Só o primeiro mês do calendário é destacado pelo tutorial.
+  Widget _firstMonthTarget(bool isFirst, Widget calendar) {
+    if (!isFirst) return calendar;
+
+    return TutorialTarget(id: TutorialTargetId.routineCalendar, child: calendar);
+  }
+
+  /// Durante o tutorial, alterna entre "Hoje" e "Todos dias" conforme o passo.
+  void _applyTutorialView(TutorialState tutorial) {
+    if (!tutorial.active || tutorial.index >= elderTutorialSteps.length) {
+      return;
+    }
+
+    final step = elderTutorialSteps[tutorial.index];
+    final allDays = step.routineAllDays;
+
+    if (step.route != RouteNames.routine || allDays == null) return;
+
+    final mode = allDays ? RoutineViewMode.allDays : RoutineViewMode.day;
+
+    if (_viewMode != mode) _changeView(mode);
   }
 
   Map<DateTime, List<RoutineTask>> _eventsForMonth(
@@ -1057,13 +1109,16 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
                 sizes.md,
                 sizes.xl,
               ),
-              child: RoutineCalendarWidget(
-                month: month,
-                selectedDay: _selectedDay,
-                eventLoader: (day) =>
-                    monthEvents[RoutineTask.dateOnly(day)] ??
-                    const <RoutineTask>[],
-                onDaySelected: _selectDay,
+              child: _firstMonthTarget(
+                isFirst,
+                RoutineCalendarWidget(
+                  month: month,
+                  selectedDay: _selectedDay,
+                  eventLoader: (day) =>
+                      monthEvents[RoutineTask.dateOnly(day)] ??
+                      const <RoutineTask>[],
+                  onDaySelected: _selectDay,
+                ),
               ),
             ),
           ),
@@ -1186,6 +1241,10 @@ class _RoutineDetailPageState extends ConsumerState<_RoutineDetailPage> {
     final sizes = context.appSizes;
 
     final theme = Theme.of(context);
+    ref.listen<TutorialState>(tutorialProvider, (previous, next) {
+      _applyTutorialView(next);
+    });
+
     final isAllDaysView = _viewMode == RoutineViewMode.allDays && !_showHistory;
     final slivers = <Widget>[
       SliverToBoxAdapter(

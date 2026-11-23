@@ -121,18 +121,34 @@
               get(caregiverPath).data.institutionId == elderAfter.institutionId;
           }
 
-          function validRecoveryContactSelection(elderId) {
-            return request.resource.data.type == 'idoso' &&
-              request.resource.data.recoveryFamilyUid is string &&
-              request.resource.data.recoveryCaregiverUid is string &&
-              isValidRecoveryFamily(
-                elderId,
-                request.resource.data.recoveryFamilyUid
-              ) &&
-              isValidRecoveryCaregiverSelection(
-                elderId,
-                request.resource.data.recoveryCaregiverUid
+          function isValidOptionalRecoveryFamily(elderId, familyUid) {
+            return familyUid == null ||
+              (
+                familyUid is string &&
+                familyUid.size() > 0 &&
+                isValidRecoveryFamily(elderId, familyUid)
               );
+          }
+
+          function isValidOptionalRecoveryCaregiver(elderId, caregiverUid) {
+            return caregiverUid == null ||
+              (
+                caregiverUid is string &&
+                caregiverUid.size() > 0 &&
+                isValidRecoveryCaregiverSelection(elderId, caregiverUid)
+              );
+          }
+
+          function validRecoveryContactSelection(elderId) {
+            let familyUid =
+              request.resource.data.get('recoveryFamilyUid', null);
+            let caregiverUid =
+              request.resource.data.get('recoveryCaregiverUid', null);
+
+            return request.resource.data.type == 'idoso' &&
+              (familyUid is string || caregiverUid is string) &&
+              isValidOptionalRecoveryFamily(elderId, familyUid) &&
+              isValidOptionalRecoveryCaregiver(elderId, caregiverUid);
           }
 
           function canAccessElder(elderId) {
@@ -922,6 +938,8 @@
             let elderPath =
                 /databases/$(database)/documents/users/$(request.auth.uid);
             let elder = getAfter(elderPath).data;
+            let familyUid = data.get('familyUid', null);
+            let caregiverUid = data.get('caregiverUid', null);
 
             return validRecoveryLookupHash(lookupHash) &&
                 data.keys().hasOnly([
@@ -936,20 +954,22 @@
                 data.institutionId == elder.institutionId &&
                 (
                   (
-                    data.familyUid == null &&
-                    data.caregiverUid == null &&
+                    familyUid == null &&
+                    caregiverUid == null &&
                     !('recoveryFamilyUid' in elder) &&
                     !('recoveryCaregiverUid' in elder)
                   ) ||
                   (
-                    data.familyUid is string &&
-                    data.caregiverUid is string &&
-                    elder.recoveryFamilyUid == data.familyUid &&
-                    elder.recoveryCaregiverUid == data.caregiverUid &&
-                    isValidRecoveryFamily(request.auth.uid, data.familyUid) &&
-                    isValidRecoveryCaregiverSelection(
+                    (familyUid is string || caregiverUid is string) &&
+                    elder.get('recoveryFamilyUid', null) == familyUid &&
+                    elder.get('recoveryCaregiverUid', null) == caregiverUid &&
+                    isValidOptionalRecoveryFamily(
                       request.auth.uid,
-                      data.caregiverUid
+                      familyUid
+                    ) &&
+                    isValidOptionalRecoveryCaregiver(
+                      request.auth.uid,
+                      caregiverUid
                     )
                   )
                 );
@@ -958,8 +978,10 @@
           function validRecoveryProof(proofId) {
             let data = request.resource.data;
 
-            return data.familyUid is string &&
-                data.caregiverUid is string &&
+            return (
+                  data.get('familyUid', null) is string ||
+                  data.get('caregiverUid', null) is string
+                ) &&
                 validRecoveryProofWithContacts(proofId, data);
           }
 
@@ -970,6 +992,8 @@
                 /databases/$(database)/documents/users/$(data.elderUid);
             let lookup = get(lookupPath).data;
             let elder = get(elderPath).data;
+            let familyUid = data.get('familyUid', null);
+            let caregiverUid = data.get('caregiverUid', null);
 
             return data.keys().hasOnly([
                   'requestId',
@@ -987,22 +1011,24 @@
                 data.createdAt == request.time &&
                 lookup.elderUid == data.elderUid &&
                 lookup.institutionId == data.institutionId &&
-                lookup.familyUid == data.familyUid &&
-                lookup.caregiverUid == data.caregiverUid &&
+                lookup.get('familyUid', null) == familyUid &&
+                lookup.get('caregiverUid', null) == caregiverUid &&
                 elder.type == 'idoso' &&
                 elder.status == 'active' &&
                 elder.institutionId == data.institutionId &&
-                elder.recoveryFamilyUid == data.familyUid &&
-                elder.recoveryCaregiverUid == data.caregiverUid &&
-                isValidRecoveryFamily(data.elderUid, data.familyUid) &&
-                isValidRecoveryCaregiver(data.elderUid, data.caregiverUid);
+                elder.get('recoveryFamilyUid', null) == familyUid &&
+                elder.get('recoveryCaregiverUid', null) == caregiverUid &&
+                isValidOptionalRecoveryFamily(data.elderUid, familyUid) &&
+                isValidOptionalRecoveryCaregiver(data.elderUid, caregiverUid);
           }
 
           function validRecoveryRequest(requestId) {
             let data = request.resource.data;
 
-            return data.familyUid is string &&
-                data.caregiverUid is string &&
+            return (
+                  data.get('familyUid', null) is string ||
+                  data.get('caregiverUid', null) is string
+                ) &&
                 validRecoveryRequestWithContacts(requestId, data);
           }
 
@@ -1013,6 +1039,8 @@
                 /databases/$(database)/documents/passwordRecoveryRateLimits/$(data.lookupHash);
             let proof = getAfter(proofPath).data;
             let rateLimit = getAfter(rateLimitPath).data;
+            let familyUid = data.get('familyUid', null);
+            let caregiverUid = data.get('caregiverUid', null);
 
             return data.keys().hasOnly([
                   'requestId',
@@ -1046,8 +1074,8 @@
                 proof.requesterUid == data.requesterUid &&
                 proof.elderUid == data.elderUid &&
                 proof.institutionId == data.institutionId &&
-                proof.familyUid == data.familyUid &&
-                proof.caregiverUid == data.caregiverUid &&
+                proof.get('familyUid', null) == familyUid &&
+                proof.get('caregiverUid', null) == caregiverUid &&
                 proof.lookupHash == data.lookupHash &&
                 existsAfter(rateLimitPath) &&
                 rateLimit.requestId == requestId &&
@@ -1073,11 +1101,15 @@
                 data.lastRequestedAt == request.time &&
                 existsAfter(proofPath) &&
                 proof.lookupHash == lookupHash &&
-                proof.familyUid is string &&
-                proof.caregiverUid is string &&
+                (
+                  proof.get('familyUid', null) is string ||
+                  proof.get('caregiverUid', null) is string
+                ) &&
                 proof.elderUid == data.elderUid &&
-                recoveryRequest.familyUid == proof.familyUid &&
-                recoveryRequest.caregiverUid == proof.caregiverUid &&
+                recoveryRequest.get('familyUid', null) ==
+                  proof.get('familyUid', null) &&
+                recoveryRequest.get('caregiverUid', null) ==
+                  proof.get('caregiverUid', null) &&
                 existsAfter(requestPath) &&
                 recoveryRequest.requestId == data.requestId &&
                 recoveryRequest.elderUid == data.elderUid &&
@@ -1172,13 +1204,21 @@
                     ) ||
                     (
                       data.familyDecision == 'rejected' &&
+                      resource.data.get('caregiverUid', null) is string &&
                       caregiverDecision == 'rejected' &&
                       data.status == 'rejected'
                     ) ||
                     (
                       data.familyDecision == 'rejected' &&
+                      resource.data.get('caregiverUid', null) is string &&
                       caregiverDecision == 'pending' &&
                       data.status == 'pending'
+                    ) ||
+                    (
+                      data.familyDecision == 'rejected' &&
+                      resource.data.get('caregiverUid', null) == null &&
+                      caregiverDecision == 'pending' &&
+                      data.status == 'rejected'
                     )
                   )
                 ) ||
@@ -1206,13 +1246,21 @@
                     ) ||
                     (
                       data.caregiverDecision == 'rejected' &&
+                      resource.data.get('familyUid', null) is string &&
                       familyDecision == 'rejected' &&
                       data.status == 'rejected'
                     ) ||
                     (
                       data.caregiverDecision == 'rejected' &&
+                      resource.data.get('familyUid', null) is string &&
                       familyDecision == 'pending' &&
                       data.status == 'pending'
+                    ) ||
+                    (
+                      data.caregiverDecision == 'rejected' &&
+                      resource.data.get('familyUid', null) == null &&
+                      familyDecision == 'pending' &&
+                      data.status == 'rejected'
                     )
                   )
                 )

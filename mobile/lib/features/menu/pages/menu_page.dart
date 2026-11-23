@@ -10,6 +10,8 @@ import '../../auth/models/account_type.dart';
 import '../../auth/models/user_session.dart';
 import '../../auth/providers/authenticated_user_navigator.dart';
 import '../../auth/providers/current_user_provider.dart';
+import '../../tutorial/models/tutorial_step.dart';
+import '../../tutorial/widgets/tutorial_target.dart';
 import '../models/menu_item_model.dart';
 
 class MenuPage extends ConsumerWidget {
@@ -117,7 +119,7 @@ class MenuPage extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final item = items[index];
 
-                    return BorderCardWidget(
+                    final card = BorderCardWidget(
                       title: item.title,
                       description: item.description,
                       leading: isCompact
@@ -128,6 +130,16 @@ class MenuPage extends ConsumerWidget {
                           : sizes.xxl * 2 + sizes.lg,
                       onTap: () => _openItem(context, item),
                     );
+
+                    // Destaque usado pelo tutorial do idoso.
+                    final tutorialTarget =
+                        isCompact && index < elderMenuTutorialTargets.length
+                        ? elderMenuTutorialTargets[index]
+                        : null;
+
+                    if (tutorialTarget == null) return card;
+
+                    return TutorialTarget(id: tutorialTarget, child: card);
                   },
                 ),
               ),

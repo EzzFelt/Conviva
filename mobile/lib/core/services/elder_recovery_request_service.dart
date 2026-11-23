@@ -21,8 +21,8 @@ class RecoveryContactsNotConfiguredException implements Exception {
 
   @override
   String toString() {
-    return 'Este idoso ainda não configurou um familiar e um cuidador '
-        'responsáveis. Entre na conta do idoso e salve os responsáveis antes '
+    return 'Este idoso ainda não configurou um familiar ou cuidador '
+        'responsável. Entre na conta do idoso e salve ao menos uma opção antes '
         'de solicitar a recuperação.';
   }
 }
@@ -76,9 +76,16 @@ class ElderRecoveryRequestService {
 
     final elderUid = lookup['elderUid'];
     final institutionId = lookup['institutionId'];
-    final familyUid = lookup['familyUid'];
-    final caregiverUid = lookup['caregiverUid'];
-    if (familyUid is! String || caregiverUid is! String) {
+    final familyValue = lookup['familyUid'];
+    final caregiverValue = lookup['caregiverUid'];
+    if ((familyValue != null && familyValue is! String) ||
+        (caregiverValue != null && caregiverValue is! String)) {
+      throw const RecoveryRequestRejectedException();
+    }
+    final familyUid = familyValue as String?;
+    final caregiverUid = caregiverValue as String?;
+    if ((familyUid == null || familyUid.isEmpty) &&
+        (caregiverUid == null || caregiverUid.isEmpty)) {
       throw const RecoveryContactsNotConfiguredException();
     }
     if (elderUid is! String || institutionId is! String) {
@@ -257,12 +264,16 @@ class ElderRecoveryRequestService {
         final otherDecision = accountType == 'family'
             ? caregiverDecision
             : familyDecision;
+        final otherUid = accountType == 'family'
+            ? data['caregiverUid']
+            : data['familyUid'];
+        final hasOtherResponsible = otherUid is String && otherUid.isNotEmpty;
         final updates = <String, dynamic>{
           decisionField: decision,
           '${accountType}RespondedAt': FieldValue.serverTimestamp(),
           'status': approve
               ? 'approved'
-              : otherDecision == 'rejected'
+              : !hasOtherResponsible || otherDecision == 'rejected'
               ? 'rejected'
               : 'pending',
         };

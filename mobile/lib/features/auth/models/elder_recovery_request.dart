@@ -23,8 +23,8 @@ class ElderRecoveryRequest {
   final String id;
   final String elderUid;
   final String institutionId;
-  final String familyUid;
-  final String caregiverUid;
+  final String? familyUid;
+  final String? caregiverUid;
   final String requesterUid;
   final String status;
   final DateTime createdAt;
@@ -84,16 +84,32 @@ class ElderRecoveryRequest {
       throw const FormatException('Status do pedido inválido.');
     }
 
-    final familyUid = requiredString('familyUid');
-    final caregiverUid = requiredString('caregiverUid');
+    String? optionalResponsibleUid(String key) {
+      final value = data[key];
+      if (value == null) return null;
+      if (value is! String || value.isEmpty) {
+        throw FormatException('Campo $key inválido no pedido.');
+      }
+      return value;
+    }
+
+    final familyUid = optionalResponsibleUid('familyUid');
+    final caregiverUid = optionalResponsibleUid('caregiverUid');
+    if (familyUid == null && caregiverUid == null) {
+      throw const FormatException('O pedido não possui responsável.');
+    }
     final approvedByUid =
         data['approvedByUid']?.toString() ??
         (status == 'approved' ? data['respondedBy']?.toString() : null);
     final approvedByType =
         data['approvedByType']?.toString() ??
-        (approvedByUid == familyUid
+        (approvedByUid != null &&
+                familyUid != null &&
+                approvedByUid == familyUid
             ? 'family'
-            : approvedByUid == caregiverUid
+            : approvedByUid != null &&
+                  caregiverUid != null &&
+                  approvedByUid == caregiverUid
             ? 'caregiver'
             : null);
     if (approvedByType != null &&

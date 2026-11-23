@@ -17,6 +17,7 @@ class AppNotification {
     this.requestId,
     this.elderName,
     this.isPersisted = true,
+    this.requiresAction = false,
   });
 
   final String id;
@@ -30,6 +31,10 @@ class AppNotification {
   final String? requestId;
   final String? elderName;
   final bool isPersisted;
+
+  /// Pedido que ainda depende de uma ação do usuário: continua na lista
+  /// mesmo depois de visto (só deixa de contar no sino).
+  final bool requiresAction;
 
   factory AppNotification.fromFirestore(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
@@ -75,7 +80,7 @@ class AppNotification {
           ? 'Pedido expirado'
           : 'Pedido de troca de senha',
       body: data['status'] == 'rejected'
-          ? 'Ambos responsáveis recusaram o pedido.'
+          ? 'Os responsáveis configurados recusaram o pedido.'
           : DateTime.now().isAfter(
               createdAt.toDate().add(const Duration(hours: 24)),
             )
@@ -86,6 +91,7 @@ class AppNotification {
       elderId: data['elderUid']?.toString(),
       requestId: document.id,
       isPersisted: false,
+      requiresAction: data['status'] != 'rejected',
     );
   }
 
@@ -112,6 +118,7 @@ class AppNotification {
       elderId: data['elderUid']?.toString(),
       requestId: document.id,
       isPersisted: false,
+      requiresAction: true,
     );
   }
 }

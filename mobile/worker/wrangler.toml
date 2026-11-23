@@ -1,0 +1,8 @@
+name = "conviva-push"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+PROJECT_ID = "conviva-63d6a"
+
+# Segredo (NÃO coloque aqui): npx wrangler secret put SERVICE_ACCOUNT_JSON

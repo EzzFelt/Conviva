@@ -49,6 +49,8 @@ class NotificationService {
   DateTime? _catchUpSince;
   void Function(String path)? _onNotificationTap;
   String? _pendingPayload;
+  // Notificações cujo toque já abriu a tela: não voltam como "novas" no sino.
+  final Set<String> _openedNotificationIds = {};
 
   Future<void> initialize({
     required void Function(String path) onNotificationTap,
@@ -77,6 +79,8 @@ class NotificationService {
       _channelName,
       description: 'Mensagens e lembretes de tarefas',
       importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
     );
     await _localNotifications
         .resolvePlatformSpecificImplementation<
@@ -131,6 +135,7 @@ class NotificationService {
     _dueTasksTimer?.cancel();
     _dueTasksTimer = null;
     _recordedTaskKeys.clear();
+    _openedNotificationIds.clear();
 
     await _cancelTaskRemindersExcept(userId);
     await _removeToken();
@@ -185,16 +190,14 @@ class NotificationService {
 
     // Enquanto o app estiver aberto, registra no sino as tarefas que
     // chegaram na hora (sem precisar de servidor).
-    _dueTasksTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) {
-        unawaited(_recordDueTaskNotifications());
-        unawaited(_touchLastCheck());
-      },
-    );
+    _dueTasksTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      unawaited(_recordDueTaskNotifications());
+      unawaited(_touchLastCheck());
+    });
   }
 
-  String _lastCheckKey(String userId) => 'conviva_notifications_checked_$userId';
+  String _lastCheckKey(String userId) =>
+      'conviva_notifications_checked_$userId';
 
   Future<DateTime?> _readLastCheck(String userId) async {
     try {
@@ -399,6 +402,8 @@ class NotificationService {
     if (!_messageNotificationsEnabled) return;
 
     final notificationId = 'message_${chatId}_${message.id}';
+    // O usuário já abriu esta conversa tocando no push: não recria no sino.
+    if (_openedNotificationIds.contains(notificationId)) return;
     final notificationTitle = title == null || title.isEmpty
         ? 'Nova mensagem'
         : title;
@@ -446,6 +451,8 @@ class NotificationService {
             channelDescription: 'Mensagens e lembretes de tarefas',
             importance: Importance.max,
             priority: Priority.high,
+            playSound: true,
+            enableVibration: true,
           ),
         ),
         payload: jsonEncode({
@@ -650,6 +657,8 @@ class NotificationService {
           importance: Importance.max,
           priority: Priority.high,
           onlyAlertOnce: true,
+          playSound: true,
+          enableVibration: true,
         ),
       ),
       payload: jsonEncode({
@@ -719,6 +728,8 @@ class NotificationService {
           importance: Importance.max,
           priority: Priority.high,
           onlyAlertOnce: true,
+          playSound: true,
+          enableVibration: true,
         ),
       ),
       // Exato quando o usuário autorizou; senão o Android pode atrasar
@@ -761,6 +772,37 @@ class NotificationService {
       } on FormatException {
         continue;
       }
+    }
+  }
+
+  Future<void> dismissNotifications(Iterable<String> notificationIds) async {
+    if (!_isAndroid) return;
+
+    for (final notificationId in notificationIds) {
+      await _localNotifications.cancel(_notificationId(notificationId));
+    }
+  }
+
+  /// Remove da bandeja tudo o que o app já mostrou, inclusive os pushes
+  /// desenhados pelo próprio sistema (FCM), que não têm o id local.
+  /// Lembretes agendados (ainda não disparados) NÃO são afetados.
+  Future<void> clearDeliveredNotifications() async {
+    if (!_isAndroid) return;
+
+    try {
+      final android = _localNotifications
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
+      final active = await android?.getActiveNotifications() ?? const [];
+      for (final notification in active) {
+        final id = notification.id;
+        if (id == null) continue;
+        await _localNotifications.cancel(id, tag: notification.tag);
+      }
+    } catch (error, stackTrace) {
+      debugPrint('Não foi possível limpar a bandeja: $error');
+      debugPrintStack(stackTrace: stackTrace);
     }
   }
 
@@ -848,6 +890,9 @@ class NotificationService {
             channelDescription: 'Mensagens e lembretes de tarefas',
             importance: Importance.max,
             priority: Priority.high,
+            onlyAlertOnce: true,
+            playSound: true,
+            enableVibration: true,
           ),
         ),
         payload: jsonEncode(message.data),
@@ -878,6 +923,8 @@ class NotificationService {
       if (notificationId != null &&
           notificationId.isNotEmpty &&
           userId != null) {
+        _openedNotificationIds.add(notificationId);
+        await dismissNotifications([notificationId]);
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)

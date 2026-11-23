@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/routes/route_names.dart';
 import '../../features/auth/providers/authenticated_user_navigator.dart';
 import '../../features/auth/providers/current_user_provider.dart';
+import '../../features/tutorial/widgets/tutorial_overlay.dart';
 import 'main_navigation_bar.dart';
 
 class MainNavigationShell extends ConsumerWidget {
@@ -82,18 +83,26 @@ class MainNavigationShell extends ConsumerWidget {
     ref.watch(currentUserProvider);
     final isConversation = location.startsWith('${RouteNames.chat}/');
 
-    return Scaffold(
-      extendBody: !isConversation,
-      backgroundColor: isConversation
-          ? Theme.of(context).colorScheme.surface
-          : null,
-      body: child,
-      bottomNavigationBar: MainNavigationBar(
-        currentIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          _selectDestination(context, ref, index);
-        },
-      ),
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Scaffold(
+            extendBody: !isConversation,
+            backgroundColor: isConversation
+                ? Theme.of(context).colorScheme.surface
+                : null,
+            body: child,
+            bottomNavigationBar: MainNavigationBar(
+              currentIndex: _currentIndex,
+              onDestinationSelected: (index) {
+                _selectDestination(context, ref, index);
+              },
+            ),
+          ),
+        ),
+        // Camada do tutorial do idoso (não aparece quando está inativo).
+        Positioned.fill(child: TutorialOverlay(location: location)),
+      ],
     );
   }
 }

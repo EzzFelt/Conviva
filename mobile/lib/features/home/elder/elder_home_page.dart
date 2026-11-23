@@ -18,6 +18,8 @@ import '../../chat/widgets/chat_avatar_widget.dart';
 import '../../chat/widgets/conversation_card_content.dart';
 import '../../chat/utils/conversation_preview_sorter.dart';
 import '../../routine/providers/next_elder_routine_provider.dart';
+import '../../tutorial/models/tutorial_step.dart';
+import '../../tutorial/widgets/tutorial_target.dart';
 import '../widgets/next_task_card.dart';
 
 class ElderHomePage extends ConsumerWidget {
@@ -234,18 +236,21 @@ class ElderHomePage extends ConsumerWidget {
                     topRight: Radius.circular(sizes.radiusLg + sizes.sm),
                   ),
                 ),
-                child: nextRoutine.when(
-                  loading: () =>
-                      const NextTaskCard(task: null, isLoading: true),
-                  error: (_, _) => const NextTaskCard(
-                    task: null,
-                    emptyMessage: 'Não foi possível carregar a próxima tarefa',
-                  ),
-                  data: (task) => NextTaskCard(
-                    task: task,
-                    onPressed: task == null
-                        ? null
-                        : () => context.go(RouteNames.routine),
+                child: TutorialTarget(
+                  id: TutorialTargetId.homeNextTask,
+                  child: nextRoutine.when(
+                    loading: () =>
+                        const NextTaskCard(task: null, isLoading: true),
+                    error: (_, _) => const NextTaskCard(
+                      task: null,
+                      emptyMessage: 'Não foi possível carregar a próxima tarefa',
+                    ),
+                    data: (task) => NextTaskCard(
+                      task: task,
+                      onPressed: task == null
+                          ? null
+                          : () => context.go(RouteNames.routine),
+                    ),
                   ),
                 ),
               ),
@@ -263,42 +268,63 @@ class ElderHomePage extends ConsumerWidget {
                   ),
                   child: Column(
                     children: [
-                      _sectionTitle(context, 'Chat - Converse'),
-                      SizedBox(height: sizes.md),
-                      _chatPreview(context, conversations, linkedFamilyIds),
-                      SizedBox(height: sizes.xxl),
-                      _sectionTitle(
-                        context,
-                        'Assistente Virtual  -\nTire Dúvidas',
-                      ),
-                      SizedBox(height: sizes.md),
-                      ActionCardWidget(
-                        title: 'Tire dúvidas sobre\ntecnologia com o Auri',
-                        illustration: const AuriAvatarWidget(),
-                        illustrationSize: sizes.xxl * 2.5,
-                        actionLabel: 'Comece agora!',
-                        onPressed: () {
-                          context.go(RouteNames.auri);
-                        },
+                      TutorialTarget(
+                        id: TutorialTargetId.homeChat,
+                        child: Column(
+                          children: [
+                            _sectionTitle(context, 'Chat - Converse'),
+                            SizedBox(height: sizes.md),
+                            _chatPreview(context, conversations, linkedFamilyIds),
+                          ],
+                        ),
                       ),
                       SizedBox(height: sizes.xxl),
-                      _sectionTitle(
-                        context,
-                        'Central de Denúncias  -\nDenuncie',
+                      TutorialTarget(
+                        id: TutorialTargetId.homeAuri,
+                        child: Column(
+                          children: [
+                            _sectionTitle(
+                              context,
+                              'Assistente Virtual  -\nTire Dúvidas',
+                            ),
+                            SizedBox(height: sizes.md),
+                            ActionCardWidget(
+                              title: 'Tire dúvidas sobre\ntecnologia com o Auri',
+                              illustration: const AuriAvatarWidget(),
+                              illustrationSize: sizes.xxl * 2.5,
+                              actionLabel: 'Comece agora!',
+                              onPressed: () {
+                                context.go(RouteNames.auri);
+                              },
+                            ),
+                          ],
+                        ),
                       ),
-                      SizedBox(height: sizes.md),
-                      ActionCardWidget(
-                        title:
-                            'Denuncie abusos que\nestiver sofrendo de\n'
-                            'maneira anônima',
-                        illustration: actionIllustration(),
-                        illustrationSize: sizes.xxl * 2,
-                        actionLabel: 'Denuncie!',
-                        onPressed: () {
-                          context.push(RouteNames.reportStart);
-                        },
-                        layout: ActionCardLayout.textFirst,
-                        showIllustrationBackground: false,
+                      SizedBox(height: sizes.xxl),
+                      TutorialTarget(
+                        id: TutorialTargetId.homeReport,
+                        child: Column(
+                          children: [
+                            _sectionTitle(
+                              context,
+                              'Central de Denúncias  -\nDenuncie',
+                            ),
+                            SizedBox(height: sizes.md),
+                            ActionCardWidget(
+                              title:
+                                  'Denuncie abusos que\nestiver sofrendo de\n'
+                                  'maneira anônima',
+                              illustration: actionIllustration(),
+                              illustrationSize: sizes.xxl * 2,
+                              actionLabel: 'Denuncie!',
+                              onPressed: () {
+                                context.push(RouteNames.reportStart);
+                              },
+                              layout: ActionCardLayout.textFirst,
+                              showIllustrationBackground: false,
+                            ),
+                          ],
+                        ),
                       ),
                       SizedBox(height: sizes.xxl * 2 + sizes.xl),
                     ],

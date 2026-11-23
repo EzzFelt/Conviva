@@ -31,8 +31,12 @@ import '../../features/reports/pages/report_success_page.dart';
 import '../../features/reports/pages/report_type_page.dart';
 import '../../features/reports/models/report_draft.dart';
 import '../../features/routine/pages/routine_page.dart';
+import '../../features/routine/pages/pending_routine_tasks_page.dart';
 import '../../features/settings/pages/settings_page.dart';
 import '../../features/support/pages/support_home_page.dart';
+import '../../features/tutorial/pages/tutorial_done_page.dart';
+import '../../features/tutorial/pages/tutorial_offer_page.dart';
+import '../../features/tutorial/pages/tutorial_setup_page.dart';
 import '../../shared/widgets/main_navigation_shell.dart';
 import 'route_names.dart';
 
@@ -131,6 +135,18 @@ class AppRouter {
           return ElderLoginPage(arguments: state.extra as AuthArguments);
         },
       ),
+      GoRoute(
+        path: RouteNames.tutorialOffer,
+        builder: (context, state) => const TutorialOfferPage(),
+      ),
+      GoRoute(
+        path: RouteNames.tutorialSetup,
+        builder: (context, state) => const TutorialSetupPage(),
+      ),
+      GoRoute(
+        path: RouteNames.tutorialDone,
+        builder: (context, state) => const TutorialDonePage(),
+      ),
       ShellRoute(
         builder: (context, state, child) {
           return MainNavigationShell(location: state.uri.path, child: child);
@@ -184,6 +200,10 @@ class AppRouter {
                 conversationId: state.pathParameters['conversationId']!,
               );
             },
+          ),
+          GoRoute(
+            path: RouteNames.pendingRoutine,
+            builder: (context, state) => const PendingRoutineTasksPage(),
           ),
           GoRoute(
             path: RouteNames.routine,

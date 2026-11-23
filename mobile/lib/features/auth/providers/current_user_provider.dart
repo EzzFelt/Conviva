@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/auth_service.dart';
 import '../../../core/settings/app_settings_provider.dart';
+import '../../tutorial/services/elder_tutorial_storage.dart';
 import '../models/account_type.dart';
 import '../models/auth_registration_result.dart';
 import '../models/user_session.dart';
@@ -71,6 +72,11 @@ class CurrentUserNotifier extends AsyncNotifier<UserSession?> {
       }
 
       final session = await _requireCurrentSession();
+
+      // Idoso recém-cadastrado: depois do cadastro, o app pergunta se ele
+      // quer fazer o tutorial.
+      await ElderTutorialStorage.markPending(session.uid);
+
       state = AsyncData(session);
 
       return AuthRegistrationResult(
