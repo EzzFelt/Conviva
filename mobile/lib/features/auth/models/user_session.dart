@@ -1,0 +1,108 @@
+import 'account_type.dart';
+
+class UserSession {
+  const UserSession({
+    required this.uid,
+    required this.name,
+    required this.phone,
+    required this.accountType,
+    required this.institutionId,
+    required this.status,
+    this.email,
+    this.elderLinkCode,
+    this.photoUrl,
+    this.jobTitle = '',
+    this.workShift = '',
+  });
+
+  final String uid;
+  final String name;
+  final String phone;
+  final AccountType accountType;
+  final String institutionId;
+  final String status;
+  final String? email;
+  final String? elderLinkCode;
+  final String? photoUrl;
+  final String jobTitle;
+  final String workShift;
+
+  factory UserSession.fromMap({
+    required String uid,
+    required Map<String, dynamic> data,
+  }) {
+    final accountType = switch (data['type']?.toString()) {
+      'idoso' => AccountType.elder,
+      'caregiver' => AccountType.caregiver,
+      'family' => AccountType.family,
+      'support' => AccountType.support,
+      _ => throw StateError('Tipo de conta inválido.'),
+    };
+
+    return UserSession(
+      uid: uid,
+      name: data['name']?.toString().trim() ?? '',
+      phone: data['phone']?.toString().trim() ?? '',
+      accountType: accountType,
+      institutionId: data['institutionId']?.toString().trim() ?? '',
+      status: data['status']?.toString().trim() ?? '',
+      email: _optionalString(data['email']),
+      elderLinkCode: _optionalString(data['elderLinkCode']),
+      photoUrl: _optionalString(data['photoUrl']),
+      jobTitle: data['jobTitle']?.toString().trim() ?? '',
+      workShift: data['workShift']?.toString().trim() ?? '',
+    );
+  }
+
+  static String? _optionalString(Object? value) {
+    final normalized = value?.toString().trim();
+    return normalized == null || normalized.isEmpty ? null : normalized;
+  }
+
+  UserSession copyWith({
+    String? name,
+    String? phone,
+    String? email,
+    String? photoUrl,
+    String? jobTitle,
+    String? workShift,
+    bool clearPhotoUrl = false,
+  }) {
+    return UserSession(
+      uid: uid,
+      name: name ?? this.name,
+      phone: phone ?? this.phone,
+      accountType: accountType,
+      institutionId: institutionId,
+      status: status,
+      email: email ?? this.email,
+      elderLinkCode: elderLinkCode,
+      photoUrl: clearPhotoUrl ? null : (photoUrl ?? this.photoUrl),
+      jobTitle: jobTitle ?? this.jobTitle,
+      workShift: workShift ?? this.workShift,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': uid,
+      'name': name,
+      'phone': phone,
+      'type': switch (accountType) {
+        AccountType.elder => 'idoso',
+        AccountType.caregiver => 'caregiver',
+        AccountType.family => 'family',
+        AccountType.support => 'support',
+      },
+      'institutionId': institutionId,
+      'status': status,
+      if (email != null) 'email': email,
+      if (elderLinkCode != null) 'elderLinkCode': elderLinkCode,
+      if (photoUrl != null) 'photoUrl': photoUrl,
+      if (accountType == AccountType.caregiver && jobTitle.isNotEmpty)
+        'jobTitle': jobTitle,
+      if (accountType == AccountType.caregiver && workShift.isNotEmpty)
+        'workShift': workShift,
+    };
+  }
+}

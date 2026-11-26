@@ -1,0 +1,1770 @@
+
+      rules_version = '2';
+
+      service cloud.firestore {
+        match /databases/{database}/documents {
+
+          function signedIn() {
+            return request.auth != null;
+          }
+
+          function isOwner(userId) {
+            return signedIn() && request.auth.uid == userId;
+          }
+
+          function currentUser() {
+            return get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data;
+          }
+
+          function isActiveUser() {
+            return signedIn() && currentUser().status == 'active';
+          }
+
+          function isSupportUser() {
+            return isActiveUser() && currentUser().type == 'support';
+          }
+
+          function isSameInstitution(institutionId) {
+            return isActiveUser() &&
+              currentUser().institutionId == institutionId;
+          }
+
+          function isActiveElder(elderId) {
+            return exists(
+              /databases/$(database)/documents/users/$(elderId)
+            ) &&
+              get(
+                /databases/$(database)/documents/users/$(elderId)
+              ).data.type == 'idoso' &&
+              get(
+                /databases/$(database)/documents/users/$(elderId)
+              ).data.status == 'active';
+          }
+
+          function familyLinkId(elderId, familyId) {
+            return elderId + '_' + familyId;
+          }
+
+          function hasActiveFamilyLink(elderId) {
+            let linkId = familyLinkId(elderId, request.auth.uid);
+
+            return exists(
+              /databases/$(database)/documents/familyLinks/$(linkId)
+            ) &&
+              get(
+                /databases/$(database)/documents/familyLinks/$(linkId)
+              ).data.status == 'active' &&
+              get(
+                /databases/$(database)/documents/familyLinks/$(linkId)
+              ).data.elderId == elderId &&
+              get(
+                /databases/$(database)/documents/familyLinks/$(linkId)
+              ).data.familiarId == request.auth.uid;
+          }
+
+          function isValidRecoveryFamily(elderId, familyUid) {
+            let linkId = familyLinkId(elderId, familyUid);
+            let familyPath =
+              /databases/$(database)/documents/users/$(familyUid);
+            let elderPath =
+              /databases/$(database)/documents/users/$(elderId);
+            let linkPath =
+              /databases/$(database)/documents/familyLinks/$(linkId);
+            let family = get(familyPath).data;
+            let elder = get(elderPath).data;
+            let link = get(linkPath).data;
+
+            return familyUid is string &&
+              exists(familyPath) &&
+              family.type == 'family' &&
+              family.status == 'active' &&
+              family.institutionId == elder.institutionId &&
+              exists(linkPath) &&
+              link.elderId == elderId &&
+              link.familiarId == familyUid &&
+              link.institutionId == elder.institutionId &&
+              link.status == 'active';
+          }
+
+          function isValidRecoveryCaregiver(elderId, caregiverUid) {
+            let caregiverPath =
+              /databases/$(database)/documents/users/$(caregiverUid);
+            let elderPath =
+              /databases/$(database)/documents/users/$(elderId);
+            let caregiver = get(caregiverPath).data;
+            let elder = get(elderPath).data;
+
+            return caregiverUid is string &&
+              exists(caregiverPath) &&
+              exists(elderPath) &&
+              caregiver.type == 'caregiver' &&
+              caregiver.status == 'active' &&
+              caregiver.institutionId == elder.institutionId;
+          }
+
+          function isValidRecoveryCaregiverSelection(elderId, caregiverUid) {
+            let caregiverPath =
+              /databases/$(database)/documents/users/$(caregiverUid);
+            let elderPath =
+              /databases/$(database)/documents/users/$(elderId);
+            let elderAfter = getAfter(elderPath).data;
+
+            return caregiverUid is string &&
+              exists(caregiverPath) &&
+              existsAfter(elderPath) &&
+              elderAfter.type == 'idoso' &&
+              elderAfter.get('recoveryCaregiverUid', '') == caregiverUid &&
+              get(caregiverPath).data.type == 'caregiver' &&
+              get(caregiverPath).data.status == 'active' &&
+              get(caregiverPath).data.institutionId == elderAfter.institutionId;
+          }
+
+          function isValidOptionalRecoveryFamily(elderId, familyUid) {
+            return familyUid == null ||
+              (
+                familyUid is string &&
+                familyUid.size() > 0 &&
+                isValidRecoveryFamily(elderId, familyUid)
+              );
+          }
+
+          function isValidOptionalRecoveryCaregiver(elderId, caregiverUid) {
+            return caregiverUid == null ||
+              (
+                caregiverUid is string &&
+                caregiverUid.size() > 0 &&
+                isValidRecoveryCaregiverSelection(elderId, caregiverUid)
+              );
+          }
+
+          function validRecoveryContactSelection(elderId) {
+            let familyUid =
+              request.resource.data.get('recoveryFamilyUid', null);
+            let caregiverUid =
+              request.resource.data.get('recoveryCaregiverUid', null);
+
+            return request.resource.data.type == 'idoso' &&
+              (familyUid is string || caregiverUid is string) &&
+              isValidOptionalRecoveryFamily(elderId, familyUid) &&
+              isValidOptionalRecoveryCaregiver(elderId, caregiverUid);
+          }
+
+          function canAccessElder(elderId) {
+            return isActiveUser() &&
+              isActiveElder(elderId) &&
+              get(
+                /databases/$(database)/documents/users/$(elderId)
+              ).data.institutionId == currentUser().institutionId &&
+              (
+                (currentUser().type == 'idoso' && request.auth.uid == elderId) ||
+                currentUser().type == 'caregiver' ||
+                (currentUser().type == 'family' && hasActiveFamilyLink(elderId))
+              );
+          }
+
+          // --------------------------------------------------
+          // INSTITUTIONS
+          // --------------------------------------------------
+
+          match /institutions/{institutionId} {
+            allow read: if true;
+            allow write: if false;
+          }
+
+          // --------------------------------------------------
+          // USERS
+          // --------------------------------------------------
+
+          match /users/{userId} {
+
+            allow create: if isOwner(userId) && (
+              (
+                request.resource.data.type == 'idoso' &&
+                request.resource.data.name is string &&
+                request.resource.data.phone is string &&
+                request.resource.data.elderLinkCode is string &&
+                request.resource.data.institutionId is string &&
+                request.resource.data.status == 'active' &&
+                request.resource.data.createdAt is timestamp
+              ) || (
+                request.resource.data.type in ['family', 'caregiver'] &&
+                request.auth.token.email_verified == true &&
+                request.resource.data.name is string &&
+                request.resource.data.email is string &&
+                request.resource.data.phone is string &&
+                request.resource.data.institutionId is string &&
+                request.resource.data.status == 'active' &&
+                request.resource.data.createdAt is timestamp
+              )
+            );
+
+            allow get: if isOwner(userId) ||
+              (
+                isSameInstitution(resource.data.institutionId) &&
+                !isSupportUser()
+              );
+
+            allow list: if isSameInstitution(resource.data.institutionId) &&
+              !isSupportUser();
+
+            allow update: if isOwner(userId) &&
+              request.resource.data
+                .diff(resource.data)
+                .affectedKeys()
+                .hasOnly([
+                  'name',
+                  'phone',
+                  'email',
+                  'photoUrl',
+                  'jobTitle',
+                  'workShift',
+                  'recoveryFamilyUid',
+                  'recoveryCaregiverUid'
+                ]) &&
+              (
+                !request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasAny([
+                    'recoveryFamilyUid',
+                    'recoveryCaregiverUid'
+                  ]) ||
+                validRecoveryContactSelection(userId)
+              ) &&
+              (
+                !('jobTitle' in request.resource.data) ||
+                (
+                  request.resource.data.jobTitle is string &&
+                  request.resource.data.jobTitle.size() <= 100
+                )
+              ) &&
+              (
+                !('workShift' in request.resource.data) ||
+                (
+                  request.resource.data.workShift is string &&
+                  request.resource.data.workShift.size() <= 100
+                )
+              ) &&
+              (
+                !('photoUrl' in request.resource.data) ||
+                (
+                  request.resource.data.photoUrl is string &&
+                  request.resource.data.photoUrl.size() < 300000
+                )
+              );
+
+            allow delete: if isOwner(userId) &&
+              resource.data.type != 'support';
+
+            // --------------------------------------------------
+            // USER PREFERENCES
+            // --------------------------------------------------
+
+            match /preferences/{preferenceId} {
+
+              function validPreferenceData() {
+                return request.resource.data.keys().hasAll([
+                    'primaryColor',
+                    'gradientTop',
+                    'gradientBottom',
+                    'fontScale',
+                    'titleFontWeight',
+                    'bodyFontWeight',
+                    'iconScale',
+                    'buttonScale',
+                    'spacingScale',
+                    'messageNotifications',
+                    'reminderNotifications',
+                    'colorIntensity'
+                  ]) &&
+                  request.resource.data.keys().hasOnly([
+                    'primaryColor',
+                    'gradientTop',
+                    'gradientBottom',
+                    'fontScale',
+                    'titleFontWeight',
+                    'bodyFontWeight',
+                    'iconScale',
+                    'buttonScale',
+                    'spacingScale',
+                    'messageNotifications',
+                    'reminderNotifications',
+                    'colorIntensity'
+                  ]) &&
+                  request.resource.data.primaryColor is number &&
+                  request.resource.data.gradientTop is number &&
+                  request.resource.data.gradientBottom is number &&
+                  request.resource.data.fontScale is number &&
+                  request.resource.data.fontScale >= 0.85 &&
+                  request.resource.data.fontScale <= 1.40 &&
+                  request.resource.data.titleFontWeight in
+                    [100, 200, 300, 400, 500, 600, 700, 800, 900] &&
+                  request.resource.data.bodyFontWeight in
+                    [100, 200, 300, 400, 500, 600, 700, 800, 900] &&
+                  request.resource.data.iconScale is number &&
+                  request.resource.data.iconScale >= 0.85 &&
+                  request.resource.data.iconScale <= 1.40 &&
+                  request.resource.data.buttonScale is number &&
+                  request.resource.data.buttonScale >= 0.90 &&
+                  request.resource.data.buttonScale <= 1.30 &&
+                  request.resource.data.spacingScale is number &&
+                  request.resource.data.spacingScale >= 0.90 &&
+                  request.resource.data.spacingScale <= 1.20 &&
+                  request.resource.data.messageNotifications is bool &&
+                  request.resource.data.reminderNotifications is bool &&
+                  request.resource.data.colorIntensity is number &&
+                  request.resource.data.colorIntensity >= 0.5 &&
+                  request.resource.data.colorIntensity <= 1.0;
+              }
+
+              allow read: if isOwner(userId) && isActiveUser();
+
+              allow create, update: if isOwner(userId) &&
+                isActiveUser() &&
+                preferenceId == 'appSettings' &&
+                validPreferenceData();
+
+              allow delete: if false;
+            }
+
+            match /devices/{deviceId} {
+              function validDeviceData() {
+                return request.resource.data.keys().hasOnly([
+                    'token',
+                    'platform',
+                    'updatedAt'
+                  ]) &&
+                  request.resource.data.token is string &&
+                  request.resource.data.token.size() > 0 &&
+                  request.resource.data.token.size() <= 4096 &&
+                  request.resource.data.token == deviceId &&
+                  request.resource.data.platform == 'android' &&
+                  request.resource.data.updatedAt is timestamp;
+              }
+
+              allow read: if isOwner(userId) && isActiveUser();
+
+              allow create, update: if isOwner(userId) &&
+                isActiveUser() &&
+                validDeviceData();
+
+              allow delete: if isOwner(userId) && isActiveUser();
+            }
+
+            match /notifications/{notificationId} {
+              allow read: if isOwner(userId) && isActiveUser();
+
+              function validNotificationBase() {
+                return request.resource.data.title is string &&
+                  request.resource.data.title.size() <= 120 &&
+                  request.resource.data.body is string &&
+                  request.resource.data.body.size() <= 120 &&
+                  request.resource.data.read == false &&
+                  request.resource.data.createdAt is timestamp;
+              }
+
+              function validMessageNotification() {
+                return request.resource.data.type == 'message' &&
+                  request.resource.data.keys().hasOnly([
+                    'type',
+                    'title',
+                    'body',
+                    'chatId',
+                    'read',
+                    'createdAt'
+                  ]) &&
+                  request.resource.data.keys().hasAll([
+                    'type',
+                    'title',
+                    'body',
+                    'chatId',
+                    'read',
+                    'createdAt'
+                  ]) &&
+                  request.resource.data.chatId is string &&
+                  get(
+                    /databases/$(database)/documents/chats/$(request.resource.data.chatId)
+                  ).data.participants.hasAny([request.auth.uid]);
+              }
+
+              // Lembrete de tarefa gerado pelo próprio app do usuário
+              // quando chega o horário da tarefa.
+              function validTaskNotification() {
+                return request.resource.data.type == 'task' &&
+                  request.resource.data.keys().hasOnly([
+                    'type',
+                    'title',
+                    'body',
+                    'elderId',
+                    'read',
+                    'createdAt'
+                  ]) &&
+                  request.resource.data.keys().hasAll([
+                    'type',
+                    'title',
+                    'body',
+                    'elderId',
+                    'read',
+                    'createdAt'
+                  ]) &&
+                  request.resource.data.elderId is string &&
+                  canAccessElder(request.resource.data.elderId);
+              }
+
+              allow create: if isOwner(userId) &&
+                isActiveUser() &&
+                validNotificationBase() &&
+                (validMessageNotification() || validTaskNotification());
+
+              allow update: if isOwner(userId) &&
+                isActiveUser() &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly(['read']) &&
+                request.resource.data.read == true;
+
+              allow create, delete: if false;
+            }
+          }
+
+          // --------------------------------------------------
+          // CHATS
+          // --------------------------------------------------
+
+          match /chats/{chatId} {
+
+            function isChatParticipant() {
+              return isActiveUser() &&
+                resource.data.participants.hasAny([request.auth.uid]) &&
+                resource.data.institutionId == currentUser().institutionId;
+            }
+
+            function isChatParticipantOnCreate() {
+              return isActiveUser() &&
+                request.resource.data.participants.hasAny([request.auth.uid]) &&
+                request.resource.data.institutionId == currentUser().institutionId;
+            }
+
+            allow get: if !exists(
+              /databases/$(database)/documents/chats/$(chatId)
+            ) || isChatParticipant();
+
+            allow list: if isChatParticipant();
+
+            allow create: if isChatParticipantOnCreate() &&
+              request.resource.data.chatId == chatId &&
+              request.resource.data.participants.size() == 2 &&
+              request.resource.data.participantsData is map &&
+              request.resource.data.unreadCount is map;
+
+            allow update: if isChatParticipant() &&
+              request.resource.data.participants == resource.data.participants &&
+              request.resource.data.institutionId == resource.data.institutionId;
+
+            allow delete: if false;
+
+            // --------------------------------------------------
+            // CHAT MESSAGES
+            // --------------------------------------------------
+
+            match /messages/{messageId} {
+
+              function isParentChatParticipant() {
+                return isActiveUser() &&
+                  get(
+                    /databases/$(database)/documents/chats/$(chatId)
+                  ).data.participants.hasAny([request.auth.uid]) &&
+                  get(
+                    /databases/$(database)/documents/chats/$(chatId)
+                  ).data.institutionId == currentUser().institutionId;
+              }
+
+              allow get, list: if !exists(
+                /databases/$(database)/documents/chats/$(chatId)
+              ) || isParentChatParticipant();
+
+              allow create: if isParentChatParticipant() &&
+                request.resource.data.messageId == messageId &&
+                request.resource.data.senderId == request.auth.uid &&
+                request.resource.data.text is string &&
+                request.resource.data.type in ['text', 'image', 'audio'] &&
+                request.resource.data.readBy is list &&
+                request.resource.data.createdAt is timestamp;
+
+              allow update: if isParentChatParticipant() &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly(['readBy']) &&
+                request.resource.data.readBy is list &&
+                request.resource.data.readBy.hasAll(resource.data.readBy) &&
+                request.resource.data.readBy.hasOnly(
+                  resource.data.readBy.concat([request.auth.uid])
+                );
+
+              allow delete: if false;
+            }
+          }
+
+          // --------------------------------------------------
+          // FAMILY LINKS
+          // --------------------------------------------------
+
+          match /familyLinks/{linkId} {
+
+            allow create: if isActiveUser() &&
+              currentUser().type == 'family' &&
+              request.resource.data.familiarId == request.auth.uid &&
+              request.resource.data.elderId is string &&
+              request.resource.data.institutionId == currentUser().institutionId &&
+              request.resource.data.status == 'pending' &&
+              request.resource.data.createdAt is timestamp &&
+              request.resource.data.receiveNotifications is bool &&
+              linkId == familyLinkId(
+                request.resource.data.elderId,
+                request.auth.uid
+              ) &&
+              isActiveElder(request.resource.data.elderId) &&
+              get(
+                /databases/$(database)/documents/users/$(request.resource.data.elderId)
+              ).data.institutionId == request.resource.data.institutionId;
+
+            allow get: if isActiveUser() &&
+              (
+                !exists(
+                  /databases/$(database)/documents/familyLinks/$(linkId)
+                ) ||
+                request.auth.uid == resource.data.familiarId ||
+                request.auth.uid == resource.data.elderId
+              );
+
+            allow list: if isActiveUser() &&
+              (
+                request.auth.uid == resource.data.familiarId ||
+                request.auth.uid == resource.data.elderId
+              );
+
+            allow update: if isActiveUser() && (
+              // Familiar: ajusta notificações ou refaz um pedido recusado.
+              // Nunca pode se ativar sozinho.
+              (
+                request.auth.uid == resource.data.familiarId &&
+                linkId == familyLinkId(resource.data.elderId, request.auth.uid) &&
+                request.resource.data.elderId == resource.data.elderId &&
+                request.resource.data.familiarId == resource.data.familiarId &&
+                request.resource.data.institutionId == resource.data.institutionId &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly(['receiveNotifications', 'status', 'createdAt']) &&
+                (
+                  request.resource.data.status == resource.data.status ||
+                  (
+                    resource.data.status == 'rejected' &&
+                    request.resource.data.status == 'pending'
+                  )
+                )
+              ) ||
+              // Idoso: aceita ou recusa um pedido pendente.
+              (
+                request.auth.uid == resource.data.elderId &&
+                currentUser().type == 'idoso' &&
+                resource.data.status == 'pending' &&
+                request.resource.data.status in ['active', 'rejected'] &&
+                request.resource.data
+                  .diff(resource.data)
+                  .affectedKeys()
+                  .hasOnly(['status'])
+              )
+            );
+
+            allow delete: if isActiveUser() &&
+              (
+                request.auth.uid == resource.data.familiarId ||
+                (
+                  request.auth.uid == resource.data.elderId &&
+                  currentUser().type == 'idoso' &&
+                  resource.data.status == 'active'
+                )
+              );
+          }
+
+          // --------------------------------------------------
+          // AURI CHATS
+          // --------------------------------------------------
+
+          match /auriChats/{userId} {
+
+            allow read, write: if signedIn() &&
+              request.auth.uid == userId;
+
+            match /messages/{messageId} {
+              allow read, write: if signedIn() &&
+                request.auth.uid == userId;
+            }
+          }
+
+          // --------------------------------------------------
+          // REPORTS
+          // --------------------------------------------------
+
+          match /reports/{reportId} {
+
+            allow create: if isActiveUser();
+
+            allow read, update, delete: if false;
+          }
+
+          // --------------------------------------------------
+          // ROUTINES
+          // --------------------------------------------------
+
+          match /routines/{elderId} {
+
+            function validRoutineDocument() {
+              return request.resource.data.elderId == elderId &&
+                request.resource.data.institutionId == currentUser().institutionId &&
+                request.resource.data.canElderCreateTasks is bool &&
+                request.resource.data.canElderEditOwnTasks is bool &&
+                request.resource.data.updatedByUserId == request.auth.uid &&
+                request.resource.data.createdAt is timestamp &&
+                request.resource.data.updatedAt is timestamp;
+            }
+
+            function validInitialRoutinePermissions() {
+              return currentUser().type == 'caregiver' ||
+                (
+                  request.resource.data.canElderCreateTasks == true &&
+                  request.resource.data.canElderEditOwnTasks == true
+                );
+            }
+
+            allow read: if canAccessElder(elderId);
+
+            allow create: if canAccessElder(elderId) &&
+              validRoutineDocument() &&
+              validInitialRoutinePermissions();
+
+            allow update: if canAccessElder(elderId) &&
+              currentUser().type == 'caregiver' &&
+              request.resource.data.elderId == resource.data.elderId &&
+              request.resource.data.institutionId == resource.data.institutionId &&
+              request.resource.data.createdAt == resource.data.createdAt &&
+              request.resource.data.updatedByUserId == request.auth.uid &&
+              request.resource.data.updatedAt is timestamp &&
+              request.resource.data
+                .diff(resource.data)
+                .affectedKeys()
+                .hasOnly([
+                  'canElderCreateTasks',
+                  'canElderEditOwnTasks',
+                  'updatedAt',
+                  'updatedByUserId'
+                ]);
+
+            allow delete: if false;
+
+            // --------------------------------------------------
+            // ROUTINE COMPLETIONS / HISTORY
+            // --------------------------------------------------
+
+            match /completions/{completionId} {
+
+              function actorRole() {
+                return currentUser().type == 'idoso'
+                  ? 'elder'
+                  : currentUser().type;
+              }
+
+              function twoDigits(value) {
+                return value < 10
+                  ? '0' + string(value)
+                  : string(value);
+              }
+
+              function validCompletionFields() {
+                return request.resource.data.keys().hasAll([
+                    'taskId',
+                    'elderId',
+                    'institutionId',
+                    'taskTitle',
+                    'taskType',
+                    'occurrenceDate',
+                    'scheduledStartAt',
+                    'scheduledEndAt',
+                    'completedAt',
+                    'completedByUserId',
+                    'completedByRole',
+                    'taskWasRecurring'
+                  ]) &&
+                  request.resource.data.keys().hasOnly([
+                    'taskId',
+                    'elderId',
+                    'institutionId',
+                    'taskTitle',
+                    'taskType',
+                    'occurrenceDate',
+                    'scheduledStartAt',
+                    'scheduledEndAt',
+                    'completedAt',
+                    'completedByUserId',
+                    'completedByRole',
+                    'taskWasRecurring'
+                  ]) &&
+                  request.resource.data.taskId is string &&
+                  request.resource.data.taskId.size() > 0 &&
+                  request.resource.data.elderId == elderId &&
+                  request.resource.data.institutionId ==
+                    currentUser().institutionId &&
+                  request.resource.data.taskTitle is string &&
+                  request.resource.data.taskTitle.size() > 0 &&
+                  request.resource.data.taskType in [
+                    'breakfast',
+                    'medication',
+                    'meal',
+                    'exercise',
+                    'leisure',
+                    'appointment',
+                    'hygiene',
+                    'sleep',
+                    'other'
+                  ] &&
+                  request.resource.data.occurrenceDate is timestamp &&
+                  request.resource.data.scheduledStartAt is timestamp &&
+                  request.resource.data.scheduledEndAt is timestamp &&
+                  request.resource.data.scheduledEndAt >
+                    request.resource.data.scheduledStartAt &&
+                  request.resource.data.completedAt == request.time &&
+                  request.resource.data.completedByUserId ==
+                    request.auth.uid &&
+                  request.resource.data.completedByRole == actorRole() &&
+                  request.resource.data.taskWasRecurring is bool;
+              }
+
+              function validCompletionId() {
+                let data = request.resource.data;
+                let occurrence = data.occurrenceDate;
+
+                return data.taskWasRecurring
+                  ? completionId ==
+                      data.taskId + '_' +
+                      string(occurrence.year()) +
+                      twoDigits(occurrence.month()) +
+                      twoDigits(occurrence.day())
+                  : completionId == data.taskId;
+              }
+
+              function taskMatchesCompletion() {
+                let taskPath =
+                  /databases/$(database)/documents/routines/$(elderId)/tasks/$(request.resource.data.taskId);
+
+                return exists(taskPath) &&
+                  get(taskPath).data.taskId ==
+                    request.resource.data.taskId &&
+                  get(taskPath).data.elderId == elderId &&
+                  get(taskPath).data.institutionId ==
+                    request.resource.data.institutionId &&
+                  get(taskPath).data.title ==
+                    request.resource.data.taskTitle &&
+                  get(taskPath).data.type ==
+                    request.resource.data.taskType &&
+                  get(taskPath).data.repeatWeekly ==
+                    request.resource.data.taskWasRecurring;
+              }
+
+              function validCompletionOccurrence() {
+                let taskPath =
+                  /databases/$(database)/documents/routines/$(elderId)/tasks/$(request.resource.data.taskId);
+
+                let taskData = get(taskPath).data;
+                let data = request.resource.data;
+
+                return data.occurrenceDate >=
+                    taskData.startAt - duration.value(1, 'd') &&
+                  data.scheduledStartAt.time() == taskData.startAt.time() &&
+                  data.scheduledEndAt.time() == taskData.endAt.time() &&
+                  (
+                    data.taskWasRecurring
+                      ? taskData.repeatWeekdays.hasAny([
+                          data.occurrenceDate.dayOfWeek()
+                        ])
+                      : data.occurrenceDate <=
+                          taskData.startAt + duration.value(1, 'd') &&
+                        data.scheduledStartAt == taskData.startAt &&
+                        data.scheduledEndAt == taskData.endAt
+                  );
+              }
+
+              allow read: if canAccessElder(elderId);
+
+              allow create: if canAccessElder(elderId) &&
+                validCompletionFields() &&
+                validCompletionId() &&
+                taskMatchesCompletion() &&
+                validCompletionOccurrence();
+
+              // O histórico não pode ser alterado ou excluído pelo aplicativo.
+              allow update, delete: if false;
+            }
+
+            // --------------------------------------------------
+            // ROUTINE TASKS
+            // --------------------------------------------------
+
+            match /tasks/{taskId} {
+
+              function actorRole() {
+                return currentUser().type == 'idoso'
+                  ? 'elder'
+                  : currentUser().type;
+              }
+
+              function validTaskDocument() {
+                return request.resource.data.taskId == taskId &&
+                  request.resource.data.elderId == elderId &&
+                  request.resource.data.institutionId == currentUser().institutionId &&
+                  request.resource.data.title is string &&
+                  request.resource.data.title.size() > 0 &&
+                  request.resource.data.startAt is timestamp &&
+                  request.resource.data.endAt is timestamp &&
+                  request.resource.data.endAt > request.resource.data.startAt &&
+                  request.resource.data.createdByUserId is string &&
+                  request.resource.data.createdByRole in [
+                    'elder',
+                    'caregiver',
+                    'family'
+                  ] &&
+                  request.resource.data.type in [
+                    'breakfast',
+                    'medication',
+                    'meal',
+                    'exercise',
+                    'leisure',
+                    'appointment',
+                    'hygiene',
+                    'sleep',
+                    'other'
+                  ] &&
+                  request.resource.data.repeatWeekly is bool &&
+                  request.resource.data.repeatWeekdays is list &&
+                  request.resource.data.createdAt is timestamp &&
+                  request.resource.data.updatedAt is timestamp;
+              }
+
+              function elderCanCreateTask() {
+                return currentUser().type != 'idoso' ||
+                  !exists(
+                    /databases/$(database)/documents/routines/$(elderId)
+                  ) ||
+                  get(
+                    /databases/$(database)/documents/routines/$(elderId)
+                  ).data.canElderCreateTasks == true;
+              }
+
+              function elderCanChangeTask() {
+                return currentUser().type != 'idoso' ||
+                  (
+                    resource.data.createdByUserId == request.auth.uid &&
+                    (
+                      !exists(
+                        /databases/$(database)/documents/routines/$(elderId)
+                      ) ||
+                      get(
+                        /databases/$(database)/documents/routines/$(elderId)
+                      ).data.canElderEditOwnTasks == true
+                    )
+                  );
+              }
+
+              // Permite excluir uma tarefa única somente quando
+              // seu registro de conclusão é criado na mesma operação.
+              function completionCreatedInSameOperation() {
+                let completionPath =
+                  /databases/$(database)/documents/routines/$(elderId)/completions/$(taskId);
+
+                return !exists(completionPath) &&
+                  existsAfter(completionPath) &&
+                  getAfter(completionPath).data.taskId == taskId &&
+                  getAfter(completionPath).data.elderId == elderId &&
+                  getAfter(completionPath).data.taskWasRecurring == false &&
+                  getAfter(completionPath).data.completedByUserId ==
+                    request.auth.uid;
+              }
+
+              allow read: if canAccessElder(elderId);
+
+              allow create: if canAccessElder(elderId) &&
+                elderCanCreateTask() &&
+                request.resource.data.createdByUserId == request.auth.uid &&
+                request.resource.data.createdByRole == actorRole() &&
+                validTaskDocument();
+
+              allow update: if canAccessElder(elderId) &&
+                elderCanChangeTask() &&
+                request.resource.data.taskId == resource.data.taskId &&
+                request.resource.data.elderId == resource.data.elderId &&
+                request.resource.data.institutionId == resource.data.institutionId &&
+                request.resource.data.createdByUserId ==
+                  resource.data.createdByUserId &&
+                request.resource.data.createdByRole == resource.data.createdByRole &&
+                request.resource.data.createdAt == resource.data.createdAt &&
+                validTaskDocument();
+
+              allow delete: if canAccessElder(elderId) &&
+                (
+                  elderCanChangeTask() ||
+                  completionCreatedInSameOperation()
+                );
+            }
+          }
+
+          // Recuperação de senha do idoso: acesso anônimo, busca exata e
+          // solicitação imutável aguardando aprovação.
+          function isAnonymousRecoveryUser() {
+            return signedIn() &&
+                request.auth.token.firebase.sign_in_provider == 'anonymous';
+          }
+
+          function validRecoveryLookupHash(lookupHash) {
+            return lookupHash is string &&
+                lookupHash.matches('^[a-f0-9]{64}$');
+          }
+
+          function validRecoveryLookupData(lookupHash) {
+            let data = request.resource.data;
+            let elderPath =
+                /databases/$(database)/documents/users/$(request.auth.uid);
+            let elder = getAfter(elderPath).data;
+            let familyUid = data.get('familyUid', null);
+            let caregiverUid = data.get('caregiverUid', null);
+
+            return validRecoveryLookupHash(lookupHash) &&
+                data.keys().hasOnly([
+                  'elderUid',
+                  'institutionId',
+                  'familyUid',
+                  'caregiverUid'
+                ]) &&
+                data.elderUid == request.auth.uid &&
+                elder.type == 'idoso' &&
+                elder.status == 'active' &&
+                data.institutionId == elder.institutionId &&
+                (
+                  (
+                    familyUid == null &&
+                    caregiverUid == null &&
+                    !('recoveryFamilyUid' in elder) &&
+                    !('recoveryCaregiverUid' in elder)
+                  ) ||
+                  (
+                    (familyUid is string || caregiverUid is string) &&
+                    elder.get('recoveryFamilyUid', null) == familyUid &&
+                    elder.get('recoveryCaregiverUid', null) == caregiverUid &&
+                    isValidOptionalRecoveryFamily(
+                      request.auth.uid,
+                      familyUid
+                    ) &&
+                    isValidOptionalRecoveryCaregiver(
+                      request.auth.uid,
+                      caregiverUid
+                    )
+                  )
+                );
+          }
+
+          function validRecoveryProof(proofId) {
+            let data = request.resource.data;
+
+            return (
+                  data.get('familyUid', null) is string ||
+                  data.get('caregiverUid', null) is string
+                ) &&
+                validRecoveryProofWithContacts(proofId, data);
+          }
+
+          function validRecoveryProofWithContacts(proofId, data) {
+            let lookupPath =
+                /databases/$(database)/documents/elderRecoveryLookups/$(data.lookupHash);
+            let elderPath =
+                /databases/$(database)/documents/users/$(data.elderUid);
+            let lookup = get(lookupPath).data;
+            let elder = get(elderPath).data;
+            let familyUid = data.get('familyUid', null);
+            let caregiverUid = data.get('caregiverUid', null);
+
+            return data.keys().hasOnly([
+                  'requestId',
+                  'lookupHash',
+                  'requesterUid',
+                  'elderUid',
+                  'institutionId',
+                  'familyUid',
+                  'caregiverUid',
+                  'createdAt'
+                ]) &&
+                data.requestId == proofId &&
+                validRecoveryLookupHash(data.lookupHash) &&
+                data.requesterUid == request.auth.uid &&
+                data.createdAt == request.time &&
+                lookup.elderUid == data.elderUid &&
+                lookup.institutionId == data.institutionId &&
+                lookup.get('familyUid', null) == familyUid &&
+                lookup.get('caregiverUid', null) == caregiverUid &&
+                elder.type == 'idoso' &&
+                elder.status == 'active' &&
+                elder.institutionId == data.institutionId &&
+                elder.get('recoveryFamilyUid', null) == familyUid &&
+                elder.get('recoveryCaregiverUid', null) == caregiverUid &&
+                isValidOptionalRecoveryFamily(data.elderUid, familyUid) &&
+                isValidOptionalRecoveryCaregiver(data.elderUid, caregiverUid);
+          }
+
+          function validRecoveryRequest(requestId) {
+            let data = request.resource.data;
+
+            return (
+                  data.get('familyUid', null) is string ||
+                  data.get('caregiverUid', null) is string
+                ) &&
+                validRecoveryRequestWithContacts(requestId, data);
+          }
+
+          function validRecoveryRequestWithContacts(requestId, data) {
+            let proofPath =
+                /databases/$(database)/documents/passwordRecoveryProofs/$(requestId);
+            let rateLimitPath =
+                /databases/$(database)/documents/passwordRecoveryRateLimits/$(data.lookupHash);
+            let proof = getAfter(proofPath).data;
+            let rateLimit = getAfter(rateLimitPath).data;
+            let familyUid = data.get('familyUid', null);
+            let caregiverUid = data.get('caregiverUid', null);
+
+            return data.keys().hasOnly([
+                  'requestId',
+                  'lookupHash',
+                  'requesterUid',
+                  'elderUid',
+                  'institutionId',
+                  'familyUid',
+                  'caregiverUid',
+                  'status',
+                  'familyDecision',
+                  'caregiverDecision',
+                  'linkDeliveredToApprover',
+                  'deliveryForwardedToElder',
+                  'resetEmailRequested',
+                  'createdAt'
+                ]) &&
+                data.requestId == requestId &&
+                validRecoveryLookupHash(data.lookupHash) &&
+                data.requesterUid == request.auth.uid &&
+                data.status == 'pending' &&
+                data.familyDecision == 'pending' &&
+                data.caregiverDecision == 'pending' &&
+                data.linkDeliveredToApprover == false &&
+                data.deliveryForwardedToElder == false &&
+                data.resetEmailRequested == false &&
+                data.createdAt == request.time &&
+                existsAfter(proofPath) &&
+                proof.requestId == requestId &&
+                proof.createdAt == request.time &&
+                proof.requesterUid == data.requesterUid &&
+                proof.elderUid == data.elderUid &&
+                proof.institutionId == data.institutionId &&
+                proof.get('familyUid', null) == familyUid &&
+                proof.get('caregiverUid', null) == caregiverUid &&
+                proof.lookupHash == data.lookupHash &&
+                existsAfter(rateLimitPath) &&
+                rateLimit.requestId == requestId &&
+                rateLimit.elderUid == data.elderUid &&
+                rateLimit.lastRequestedAt == request.time;
+          }
+
+          function validRecoveryRateLimit(lookupHash) {
+            let data = request.resource.data;
+            let proofPath =
+                /databases/$(database)/documents/passwordRecoveryProofs/$(data.requestId);
+            let requestPath =
+                /databases/$(database)/documents/passwordRecoveryRequests/$(data.requestId);
+            let proof = getAfter(proofPath).data;
+            let recoveryRequest = getAfter(requestPath).data;
+
+            return validRecoveryLookupHash(lookupHash) &&
+                data.keys().hasOnly([
+                  'elderUid',
+                  'requestId',
+                  'lastRequestedAt'
+                ]) &&
+                data.lastRequestedAt == request.time &&
+                existsAfter(proofPath) &&
+                proof.lookupHash == lookupHash &&
+                (
+                  proof.get('familyUid', null) is string ||
+                  proof.get('caregiverUid', null) is string
+                ) &&
+                proof.elderUid == data.elderUid &&
+                recoveryRequest.get('familyUid', null) ==
+                  proof.get('familyUid', null) &&
+                recoveryRequest.get('caregiverUid', null) ==
+                  proof.get('caregiverUid', null) &&
+                existsAfter(requestPath) &&
+                recoveryRequest.requestId == data.requestId &&
+                recoveryRequest.elderUid == data.elderUid &&
+                recoveryRequest.createdAt == request.time;
+          }
+
+          function canReviewRecoveryRequest(data, actor) {
+            let elderUid = data.get('elderUid', '');
+            let institutionId = data.get('institutionId', '');
+            let elderPath =
+              /databases/$(database)/documents/users/$(elderUid);
+            let elder = get(elderPath).data;
+
+            return actor.status == 'active' &&
+              elderUid is string &&
+              institutionId is string &&
+              institutionId == actor.get('institutionId', '') &&
+              elder.type == 'idoso' &&
+              elder.status == 'active' &&
+              elder.institutionId == institutionId &&
+              (
+                (
+                  actor.type == 'family' &&
+                  request.auth.uid == data.get('familyUid', '') &&
+                  isValidRecoveryFamily(elderUid, request.auth.uid)
+                ) ||
+                (
+                  actor.type == 'caregiver' &&
+                  request.auth.uid == data.get('caregiverUid', '') &&
+                  isValidRecoveryCaregiver(elderUid, request.auth.uid)
+                )
+              );
+          }
+
+          function isRecoveryRequestParticipant(data, actor) {
+            return actor.status == 'active' &&
+              (
+                (
+                  actor.type == 'family' &&
+                  request.auth.uid == data.get('familyUid', '')
+                ) ||
+                (
+                  actor.type == 'caregiver' &&
+                  request.auth.uid == data.get('caregiverUid', '')
+                )
+              );
+          }
+
+          function validRecoveryResponse(actor) {
+            let data = request.resource.data;
+            let changed = data.diff(resource.data).affectedKeys();
+            let familyDecision = resource.data.get('familyDecision', 'pending');
+            let caregiverDecision =
+              resource.data.get('caregiverDecision', 'pending');
+
+            return resource.data.status == 'pending' &&
+              resource.data.createdAt is timestamp &&
+              request.time <
+                resource.data.createdAt + duration.value(24, 'h') &&
+              (
+                (
+                  actor.type == 'family' &&
+                  familyDecision == 'pending'
+                ) ||
+                (
+                  actor.type == 'caregiver' &&
+                  caregiverDecision == 'pending'
+                )
+              ) &&
+              (
+                (
+                  actor.type == 'family' &&
+                  data.familyDecision in ['approved', 'rejected'] &&
+                  data.familyRespondedAt == request.time &&
+                  data.caregiverDecision == caregiverDecision &&
+                  changed.hasAll(['familyDecision', 'familyRespondedAt']) &&
+                  changed.hasOnly([
+                    'status',
+                    'familyDecision',
+                    'caregiverDecision',
+                    'familyRespondedAt',
+                    'approvedByUid',
+                    'approvedByType'
+                  ]) &&
+                  (
+                    (
+                      data.familyDecision == 'approved' &&
+                      data.status == 'approved' &&
+                      data.approvedByUid == request.auth.uid &&
+                      data.approvedByType == 'family' &&
+                      changed.hasAll(['approvedByUid', 'approvedByType'])
+                    ) ||
+                    (
+                      data.familyDecision == 'rejected' &&
+                      resource.data.get('caregiverUid', null) is string &&
+                      caregiverDecision == 'rejected' &&
+                      data.status == 'rejected'
+                    ) ||
+                    (
+                      data.familyDecision == 'rejected' &&
+                      resource.data.get('caregiverUid', null) is string &&
+                      caregiverDecision == 'pending' &&
+                      data.status == 'pending'
+                    ) ||
+                    (
+                      data.familyDecision == 'rejected' &&
+                      resource.data.get('caregiverUid', null) == null &&
+                      caregiverDecision == 'pending' &&
+                      data.status == 'rejected'
+                    )
+                  )
+                ) ||
+                (
+                  actor.type == 'caregiver' &&
+                  data.caregiverDecision in ['approved', 'rejected'] &&
+                  data.caregiverRespondedAt == request.time &&
+                  data.familyDecision == familyDecision &&
+                  changed.hasAll(['caregiverDecision', 'caregiverRespondedAt']) &&
+                  changed.hasOnly([
+                    'status',
+                    'familyDecision',
+                    'caregiverDecision',
+                    'caregiverRespondedAt',
+                    'approvedByUid',
+                    'approvedByType'
+                  ]) &&
+                  (
+                    (
+                      data.caregiverDecision == 'approved' &&
+                      data.status == 'approved' &&
+                      data.approvedByUid == request.auth.uid &&
+                      data.approvedByType == 'caregiver' &&
+                      changed.hasAll(['approvedByUid', 'approvedByType'])
+                    ) ||
+                    (
+                      data.caregiverDecision == 'rejected' &&
+                      resource.data.get('familyUid', null) is string &&
+                      familyDecision == 'rejected' &&
+                      data.status == 'rejected'
+                    ) ||
+                    (
+                      data.caregiverDecision == 'rejected' &&
+                      resource.data.get('familyUid', null) is string &&
+                      familyDecision == 'pending' &&
+                      data.status == 'pending'
+                    ) ||
+                    (
+                      data.caregiverDecision == 'rejected' &&
+                      resource.data.get('familyUid', null) == null &&
+                      familyDecision == 'pending' &&
+                      data.status == 'rejected'
+                    )
+                  )
+                )
+              );
+          }
+
+          function recoveryApproverUid(data) {
+            return data.get('approvedByUid', '');
+          }
+
+          function deliveryIsWithinRetention(delivery) {
+            return delivery.createdAt is timestamp &&
+              delivery.deliveryExpiresAt is timestamp &&
+              delivery.createdAt <= delivery.deliveryExpiresAt &&
+              request.time >= delivery.createdAt &&
+              request.time < delivery.deliveryExpiresAt;
+          }
+
+          function validSupportRecoveryLinkDelivery(requestId) {
+            let data = request.resource.data;
+            let changed = data.diff(resource.data).affectedKeys();
+            let deliveryPath =
+                /databases/$(database)/documents/passwordRecoveryDeliveries/$(requestId);
+            let delivery = getAfter(deliveryPath).data;
+
+            return resource.data.status == 'approved' &&
+               resource.data.createdAt is timestamp &&
+               request.time <
+                 resource.data.createdAt + duration.value(24, 'h') &&
+              resource.data.get('resetEmailRequested', false) == true &&
+              resource.data.resetEmailRequestedAt is timestamp &&
+              resource.data.get('linkDeliveredToApprover', false) == false &&
+              data.linkDeliveredToApprover == true &&
+              data.resetEmailRequested == false &&
+              !('resetEmailRequestedAt' in data) &&
+              !('resetEmailRequestedBy' in data) &&
+              data.linkDeliveredAt == request.time &&
+              changed.hasOnly([
+                'linkDeliveredToApprover',
+                'linkDeliveredAt',
+                'resetEmailRequested',
+                'resetEmailRequestedAt',
+                'resetEmailRequestedBy'
+              ]) &&
+              existsAfter(deliveryPath) &&
+              delivery.requestId == requestId &&
+              delivery.recipientUid == recoveryApproverUid(resource.data) &&
+              delivery.requesterUid == resource.data.requesterUid &&
+              delivery.elderUid == resource.data.elderUid &&
+              delivery.createdAt == request.time &&
+              delivery.deliveryExpiresAt is timestamp &&
+              delivery.deliveryExpiresAt > request.time &&
+              delivery.deliveryExpiresAt <=
+                request.time + duration.value(1, 'h') &&
+              delivery.forwardedToElder == false;
+          }
+
+          function validSupportRecoveryEmailAttempt() {
+            let data = request.resource.data;
+            let changed = data.diff(resource.data).affectedKeys();
+
+            return resource.data.status == 'approved' &&
+               resource.data.createdAt is timestamp &&
+               request.time <
+                 resource.data.createdAt + duration.value(24, 'h') &&
+              data.resetEmailAttemptAt == request.time &&
+              data.resetEmailAttemptBy == request.auth.uid &&
+              changed.hasAll(['resetEmailAttemptAt']) &&
+              changed.hasOnly(['resetEmailAttemptAt', 'resetEmailAttemptBy']) &&
+              (
+                !('resetEmailAttemptAt' in resource.data) ||
+                (
+                  resource.data.resetEmailAttemptAt is timestamp &&
+                  request.time >=
+                    resource.data.resetEmailAttemptAt + duration.value(5, 'm')
+                )
+              ) &&
+              (
+                !('resetEmailRequestedAt' in resource.data) ||
+                (
+                  resource.data.resetEmailRequestedAt is timestamp &&
+                  request.time >=
+                    resource.data.resetEmailRequestedAt + duration.value(5, 'm')
+                )
+              );
+          }
+
+          function validSupportRecoveryEmailResend(requestId) {
+            let data = request.resource.data;
+            let changed = data.diff(resource.data).affectedKeys();
+            let deliveryPath =
+                /databases/$(database)/documents/passwordRecoveryDeliveries/$(requestId);
+
+            return resource.data.status == 'approved' &&
+              resource.data.createdAt is timestamp &&
+              request.time <
+                resource.data.createdAt + duration.value(24, 'h') &&
+              resource.data.resetEmailAttemptAt is timestamp &&
+              resource.data.resetEmailAttemptBy == request.auth.uid &&
+              request.time >= resource.data.resetEmailAttemptAt &&
+              request.time <
+                resource.data.resetEmailAttemptAt + duration.value(5, 'm') &&
+              data.linkDeliveredToApprover == false &&
+              data.deliveryForwardedToElder == false &&
+              data.resetEmailRequested == true &&
+              data.resetEmailRequestedAt == request.time &&
+              data.resetEmailRequestedBy == request.auth.uid &&
+              (
+                !('resetEmailRequestedAt' in resource.data) ||
+                request.time >=
+                  resource.data.resetEmailRequestedAt + duration.value(5, 'm')
+              ) &&
+              changed.hasAll(['resetEmailRequestedAt']) &&
+              changed.hasOnly([
+                'linkDeliveredToApprover',
+                'deliveryForwardedToElder',
+                'resetEmailRequested',
+                'resetEmailRequestedAt',
+                'resetEmailRequestedBy',
+                'linkDeliveredAt',
+                'deliveryForwardedAt',
+                'resetEmailAttemptAt',
+                'resetEmailAttemptBy'
+              ]) &&
+              !existsAfter(deliveryPath);
+          }
+
+          function validRecoveryRequestForwarding(requestId) {
+            let data = request.resource.data;
+            let changed = data.diff(resource.data).affectedKeys();
+            let deliveryPath =
+                /databases/$(database)/documents/passwordRecoveryDeliveries/$(requestId);
+            let delivery = getAfter(deliveryPath).data;
+
+            return resource.data.status == 'approved' &&
+              resource.data.createdAt is timestamp &&
+              request.time <
+                resource.data.createdAt + duration.value(24, 'h') &&
+              recoveryApproverUid(resource.data) == request.auth.uid &&
+              resource.data.linkDeliveredToApprover == true &&
+              resource.data.get('deliveryForwardedToElder', false) == false &&
+              data.deliveryForwardedToElder == true &&
+              data.deliveryForwardedAt == request.time &&
+              changed.hasAll([
+                'deliveryForwardedToElder',
+                'deliveryForwardedAt'
+              ]) &&
+              changed.hasOnly([
+                'deliveryForwardedToElder',
+                'deliveryForwardedAt'
+              ]) &&
+              existsAfter(deliveryPath) &&
+              delivery.requestId == requestId &&
+              deliveryIsWithinRetention(delivery) &&
+              delivery.elderUid == resource.data.elderUid &&
+              delivery.recipientUid == request.auth.uid &&
+              delivery.requesterUid == resource.data.requesterUid &&
+              delivery.forwardedToElder == true &&
+              delivery.forwardedAt == request.time;
+          }
+
+          function validRecoveryDeliveryCreate(requestId) {
+            let data = request.resource.data;
+            let requestPath =
+                /databases/$(database)/documents/passwordRecoveryRequests/$(requestId);
+            let recoveryRequest = get(requestPath).data;
+
+            return isSupportUser() &&
+              exists(requestPath) &&
+              recoveryRequest.status == 'approved' &&
+              recoveryRequest.createdAt is timestamp &&
+              request.time <
+                recoveryRequest.createdAt + duration.value(24, 'h') &&
+              recoveryRequest.get('resetEmailRequested', false) == true &&
+              recoveryRequest.resetEmailRequestedAt is timestamp &&
+              recoveryRequest.get('linkDeliveredToApprover', false) == false &&
+              data.keys().hasOnly([
+                'requestId',
+                'recipientUid',
+                'requesterUid',
+                'elderUid',
+                'resetLink',
+                'forwardedToElder',
+                'createdAt',
+                'deliveryExpiresAt',
+                'forwardedAt'
+              ]) &&
+              data.requestId == requestId &&
+              data.recipientUid == recoveryApproverUid(recoveryRequest) &&
+              data.requesterUid == recoveryRequest.requesterUid &&
+              data.elderUid == recoveryRequest.elderUid &&
+              data.resetLink is string &&
+              data.resetLink.size() <= 4096 &&
+              data.resetLink.matches(
+                '^https://conviva-63d6a[.]firebaseapp[.]com/__/auth/action[?].*'
+              ) &&
+              data.resetLink.matches('.*mode=resetPassword.*') &&
+              data.resetLink.matches('.*oobCode=[^&]+.*') &&
+              data.forwardedToElder == false &&
+              data.createdAt == request.time &&
+              data.deliveryExpiresAt is timestamp &&
+              data.deliveryExpiresAt > request.time &&
+              data.deliveryExpiresAt <=
+                request.time + duration.value(65, 'm') &&
+              data.forwardedAt == null;
+          }
+
+          function validRecoveryDeliveryForward(requestId) {
+            let data = request.resource.data;
+            let changed = data.diff(resource.data).affectedKeys();
+            let requestPath =
+                /databases/$(database)/documents/passwordRecoveryRequests/$(requestId);
+            let recoveryRequest = get(requestPath).data;
+            let recoveryRequestAfter = getAfter(requestPath).data;
+
+            return isActiveUser() &&
+              exists(requestPath) &&
+              recoveryRequest.status == 'approved' &&
+              recoveryApproverUid(recoveryRequest) == request.auth.uid &&
+              recoveryRequest.linkDeliveredToApprover == true &&
+              resource.data.requestId == requestId &&
+              resource.data.recipientUid == request.auth.uid &&
+              resource.data.requesterUid == recoveryRequest.requesterUid &&
+              resource.data.elderUid == recoveryRequest.elderUid &&
+              resource.data.forwardedToElder == false &&
+              deliveryIsWithinRetention(resource.data) &&
+              data.forwardedToElder == true &&
+              data.forwardedAt == request.time &&
+              changed.hasAll(['forwardedToElder', 'forwardedAt']) &&
+              changed.hasOnly(['forwardedToElder', 'forwardedAt']) &&
+              recoveryRequestAfter.deliveryForwardedToElder == true &&
+              recoveryRequestAfter.deliveryForwardedAt == request.time;
+          }
+
+          function canReadRecoveryDelivery(requestId) {
+            let requestPath =
+                /databases/$(database)/documents/passwordRecoveryRequests/$(requestId);
+
+            return exists(requestPath) && (
+              (
+                isAnonymousRecoveryUser() &&
+                resource.data.requestId == requestId &&
+                resource.data.requesterUid == request.auth.uid &&
+                resource.data.forwardedToElder == true &&
+                get(requestPath).data.status == 'approved' &&
+                get(requestPath).data.requesterUid == request.auth.uid &&
+                get(requestPath).data.elderUid == resource.data.elderUid &&
+                get(requestPath).data.deliveryForwardedToElder == true &&
+                deliveryIsWithinRetention(resource.data)
+              ) ||
+              (
+                isActiveUser() &&
+                resource.data.requestId == requestId &&
+                resource.data.recipientUid == request.auth.uid &&
+                resource.data.forwardedToElder == false &&
+                recoveryApproverUid(get(requestPath).data) ==
+                  request.auth.uid &&
+                get(requestPath).data.status == 'approved' &&
+                get(requestPath).data.requesterUid == resource.data.requesterUid &&
+                get(requestPath).data.elderUid == resource.data.elderUid &&
+                get(requestPath).data.linkDeliveredToApprover == true &&
+                deliveryIsWithinRetention(resource.data)
+              )
+            );
+          }
+
+          function validElderRecoveryCompletion(requestId) {
+            let data = request.resource.data;
+            let changed = data.diff(resource.data).affectedKeys();
+            let deliveryPath =
+                /databases/$(database)/documents/passwordRecoveryDeliveries/$(requestId);
+
+            return request.auth.uid == resource.data.elderUid &&
+              resource.data.status == 'approved' &&
+              resource.data.deliveryForwardedToElder == true &&
+              data.status == 'completed' &&
+              data.completedBy == request.auth.uid &&
+              data.completedAt == request.time &&
+              data.get('resetEmailRequested', false) == false &&
+              changed.hasAll(['status', 'completedBy', 'completedAt']) &&
+              changed.hasOnly([
+                'status',
+                'completedBy',
+                'completedAt',
+                'resetEmailRequested',
+                'resetEmailRequestedAt',
+                'resetEmailRequestedBy',
+                'resetEmailAttemptAt',
+                'resetEmailAttemptBy',
+                'linkDeliveredAt',
+                'deliveryForwardedAt'
+              ]) &&
+              !existsAfter(deliveryPath);
+          }
+
+          function validElderRecoveryDeliveryDelete(requestId) {
+            let requestPath =
+                /databases/$(database)/documents/passwordRecoveryRequests/$(requestId);
+            let recoveryRequestAfter = getAfter(requestPath).data;
+
+            return isActiveUser() &&
+              currentUser().type == 'idoso' &&
+              request.auth.uid == resource.data.elderUid &&
+              resource.data.requestId == requestId &&
+              resource.data.forwardedToElder == true &&
+              exists(requestPath) &&
+              get(requestPath).data.status == 'approved' &&
+              get(requestPath).data.elderUid == request.auth.uid &&
+              recoveryRequestAfter.status == 'completed' &&
+              recoveryRequestAfter.completedBy == request.auth.uid &&
+              recoveryRequestAfter.completedAt == request.time;
+          }
+
+          function validRecoveryDecisionUpdate() {
+            let actor = currentUser();
+
+            return actor.status == 'active' &&
+              actor.type in ['family', 'caregiver'] &&
+              isRecoveryRequestParticipant(resource.data, actor) &&
+              validRecoveryResponse(actor) &&
+              canReviewRecoveryRequest(resource.data, actor);
+          }
+
+          function validRecoverySupportUpdate(requestId) {
+            let actor = currentUser();
+            let changed = request.resource.data.diff(resource.data).affectedKeys();
+
+            return actor.status == 'active' &&
+              actor.type == 'support' &&
+              (
+                (
+                  changed.hasAny(['resetEmailAttemptAt']) &&
+                  validSupportRecoveryEmailAttempt()
+                ) ||
+                (
+                  changed.hasAny([
+                    'linkDeliveredToApprover',
+                    'linkDeliveredAt'
+                  ]) &&
+                  validSupportRecoveryLinkDelivery(requestId)
+                ) ||
+                (
+                  changed.hasAny(['resetEmailRequestedAt']) &&
+                  validSupportRecoveryEmailResend(requestId)
+                )
+              );
+          }
+
+          function validRecoveryForwardingUpdate(requestId) {
+            let actor = currentUser();
+
+            return actor.status == 'active' &&
+              actor.type in ['family', 'caregiver'] &&
+              validRecoveryRequestForwarding(requestId);
+          }
+
+          function validElderRecoveryCompletionUpdate(requestId) {
+            let actor = currentUser();
+
+            return actor.status == 'active' &&
+              actor.type == 'idoso' &&
+              validElderRecoveryCompletion(requestId);
+          }
+
+          function validPasswordRecoveryRequestUpdate(requestId) {
+            let changed = request.resource.data.diff(resource.data).affectedKeys();
+
+            return changed.hasAny(['familyDecision', 'caregiverDecision'])
+              ? resource.data.status == 'pending' &&
+                  validRecoveryDecisionUpdate()
+              : changed.hasAny([
+                  'resetEmailAttemptAt',
+                  'linkDeliveredToApprover',
+                  'linkDeliveredAt',
+                  'resetEmailRequestedAt'
+                ])
+                ? validRecoverySupportUpdate(requestId)
+                : changed.hasAny([
+                    'deliveryForwardedToElder',
+                    'deliveryForwardedAt'
+                  ])
+                  ? validRecoveryForwardingUpdate(requestId)
+                  : changed.hasAny(['completedBy', 'completedAt'])
+                    ? validElderRecoveryCompletionUpdate(requestId)
+                    : false;
+          }
+
+          match /elderRecoveryLookups/{lookupHash} {
+            allow get: if isAnonymousRecoveryUser() &&
+                validRecoveryLookupHash(lookupHash) &&
+                resource.data.keys().hasOnly([
+                  'elderUid',
+                  'institutionId',
+                  'familyUid',
+                  'caregiverUid'
+                ]);
+            allow list: if false;
+
+            allow create: if isOwner(request.auth.uid) &&
+                validRecoveryLookupData(lookupHash);
+
+            allow update: if isOwner(request.auth.uid) &&
+                resource.data.elderUid == request.auth.uid &&
+                request.resource.data.elderUid == resource.data.elderUid &&
+                validRecoveryLookupData(lookupHash);
+
+            allow delete: if false;
+          }
+
+          match /passwordRecoveryProofs/{proofId} {
+            allow read, update: if false;
+            allow create: if isAnonymousRecoveryUser() &&
+                validRecoveryProof(proofId);
+            allow delete: if isAnonymousRecoveryUser() &&
+                resource.data.requesterUid == request.auth.uid &&
+                exists(
+                  /databases/$(database)/documents/passwordRecoveryRequests/$(proofId)
+                ) &&
+                get(
+                  /databases/$(database)/documents/passwordRecoveryRequests/$(proofId)
+                ).data.requesterUid == request.auth.uid;
+          }
+
+          match /passwordRecoveryRequests/{requestId} {
+            allow get: if (
+                isAnonymousRecoveryUser() &&
+                resource.data.requesterUid == request.auth.uid
+              ) || canReviewRecoveryRequest(resource.data, currentUser()) ||
+              isSupportUser() &&
+              resource.data.status == 'approved' ||
+              (
+                isActiveUser() &&
+                currentUser().type == 'idoso' &&
+                resource.data.elderUid == request.auth.uid
+              );
+
+            allow list: if (
+                isAnonymousRecoveryUser() &&
+                resource.data.requesterUid == request.auth.uid
+              ) || (
+                resource.data.status == 'pending' &&
+                isRecoveryRequestParticipant(resource.data, currentUser())
+              ) || (
+                isSupportUser() &&
+                resource.data.status == 'approved'
+              ) || (
+                isActiveUser() &&
+                currentUser().type in ['family', 'caregiver'] &&
+                resource.data.status == 'approved' &&
+                recoveryApproverUid(resource.data) == request.auth.uid
+              ) || (
+                resource.data.status == 'rejected' &&
+                isRecoveryRequestParticipant(resource.data, currentUser())
+              ) || (
+                isActiveUser() &&
+                currentUser().type == 'idoso' &&
+                resource.data.elderUid == request.auth.uid &&
+                resource.data.status == 'approved' &&
+                resource.data.deliveryForwardedToElder == true
+              );
+
+            allow create: if isAnonymousRecoveryUser() &&
+                validRecoveryRequest(requestId);
+            allow update: if validPasswordRecoveryRequestUpdate(requestId);
+            allow delete: if false;
+          }
+
+          match /passwordRecoveryDeliveries/{requestId} {
+            allow get: if canReadRecoveryDelivery(requestId);
+            allow list: if false;
+            allow create: if validRecoveryDeliveryCreate(requestId);
+            allow update: if validRecoveryDeliveryForward(requestId);
+            allow delete: if validElderRecoveryDeliveryDelete(requestId) ||
+                (
+                  isSupportUser() &&
+                  resource.data.requestId == requestId &&
+                  existsAfter(
+                    /databases/$(database)/documents/passwordRecoveryRequests/$(requestId)
+                  ) &&
+                  getAfter(
+                    /databases/$(database)/documents/passwordRecoveryRequests/$(requestId)
+                  ).data.status == 'approved' &&
+                  getAfter(
+                    /databases/$(database)/documents/passwordRecoveryRequests/$(requestId)
+                  ).data.resetEmailRequested == true &&
+                  getAfter(
+                    /databases/$(database)/documents/passwordRecoveryRequests/$(requestId)
+                  ).data.resetEmailRequestedAt == request.time &&
+                  getAfter(
+                    /databases/$(database)/documents/passwordRecoveryRequests/$(requestId)
+                  ).data.resetEmailRequestedBy == request.auth.uid
+                );
+          }
+
+          match /passwordRecoveryRateLimits/{lookupHash} {
+            allow read: if false;
+            allow create: if isAnonymousRecoveryUser() &&
+                validRecoveryRateLimit(lookupHash);
+            allow update: if isAnonymousRecoveryUser() &&
+                resource.data.elderUid == request.resource.data.elderUid &&
+                request.time >=
+                  resource.data.lastRequestedAt + duration.value(5, 'm') &&
+                validRecoveryRateLimit(lookupHash);
+            allow delete: if false;
+          }
+        }
+      }

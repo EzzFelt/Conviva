@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -28,15 +25,9 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for windows - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return windows;
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -49,9 +40,19 @@ class DefaultFirebaseOptions {
     }
   }
 
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBHOpfNrKvvLEK9ZjSuKg2Y9C0Ok5n7bsU',
+    appId: '1:434623142543:web:7806be6ed63750bb2baefa',
+    messagingSenderId: '434623142543',
+    projectId: 'conviva-63d6a',
+    authDomain: 'conviva-63d6a.firebaseapp.com',
+    storageBucket: 'conviva-63d6a.firebasestorage.app',
+    measurementId: 'G-P21QJBZWP1',
+  );
+
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCpnrM3HqzmVfrvGf3BubKLJbIN1ZBHi80',
-    appId: '1:434623142543:android:b5410514b3f82c812baefa',
+    appId: '1:434623142543:android:f2f97f240496fde92baefa',
     messagingSenderId: '434623142543',
     projectId: 'conviva-63d6a',
     storageBucket: 'conviva-63d6a.firebasestorage.app',
@@ -59,10 +60,29 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyAhUYEUCqNFMi3UMWlln3e7qUKOGBFLybM',
-    appId: '1:434623142543:ios:48ee93a2af12d9bb2baefa',
+    appId: '1:434623142543:ios:988dd3533cdbf0d42baefa',
     messagingSenderId: '434623142543',
     projectId: 'conviva-63d6a',
     storageBucket: 'conviva-63d6a.firebasestorage.app',
-    iosBundleId: 'com.example.convivaApp',
+    iosBundleId: 'com.example.conviva',
+  );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyAhUYEUCqNFMi3UMWlln3e7qUKOGBFLybM',
+    appId: '1:434623142543:ios:988dd3533cdbf0d42baefa',
+    messagingSenderId: '434623142543',
+    projectId: 'conviva-63d6a',
+    storageBucket: 'conviva-63d6a.firebasestorage.app',
+    iosBundleId: 'com.example.conviva',
+  );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyBHOpfNrKvvLEK9ZjSuKg2Y9C0Ok5n7bsU',
+    appId: '1:434623142543:web:7c8f5827606f10a52baefa',
+    messagingSenderId: '434623142543',
+    projectId: 'conviva-63d6a',
+    authDomain: 'conviva-63d6a.firebaseapp.com',
+    storageBucket: 'conviva-63d6a.firebasestorage.app',
+    measurementId: 'G-D25HL8S832',
   );
 }

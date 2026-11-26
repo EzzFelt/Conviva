@@ -1,0 +1,12 @@
+{
+  "name": "conviva-firestore-rules-tests",
+  "private": true,
+  "scripts": {
+    "test": "firebase emulators:exec --config ../firebase.json --only firestore --project demo-conviva-rules \"node --test test/firestore-recovery.test.cjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.4.0",
+    "firebase-tools": "^15.19.1"
+  }
+}

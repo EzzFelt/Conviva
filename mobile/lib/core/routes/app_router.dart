@@ -1,73 +1,272 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../features/onboarding/presentation/pages/splash_page.dart';
-import '../../features/onboarding/presentation/pages/onboarding_page.dart';
-import '../../features/onboarding/presentation/pages/user_type_selection_page.dart';
 
-/// Configuração de rotas do aplicativo usando GoRouter
+import '../../features/auth/models/auth_arguments.dart';
+import '../../features/auth/models/account_type.dart';
+import '../../features/auth/pages/elder_login_page.dart';
+import '../../features/auth/pages/elder_password_reset_page.dart';
+import '../../features/auth/pages/family_link_page.dart';
+import '../../features/auth/pages/forgot_password_page.dart';
+import '../../features/auth/pages/login_page.dart';
+import '../../features/auth/pages/register_page.dart';
+import '../../features/auth/pages/verify_email_page.dart';
+import '../../features/auth/models/elder_password_reset_request.dart';
+import '../../features/auri/pages/auri_page.dart';
+import '../../features/chat/pages/chat_page.dart';
+import '../../features/chat/pages/conversation_page.dart';
+import '../../features/home/caregiver/caregiver_home_page.dart';
+import '../../features/home/elder/elder_home_page.dart';
+import '../../features/home/family/family_home_page.dart';
+import '../../features/menu/pages/menu_page.dart';
+import '../../features/notifications/pages/password_reset_approval_page.dart';
+import '../../features/onboarding/models/onboarding_arguments.dart';
+import '../../features/onboarding/pages/onboarding_page.dart';
+import '../../features/onboarding/pages/splash_page.dart';
+import '../../features/profile/pages/profile_page.dart';
+import '../../features/reports/pages/report_form_page.dart';
+import '../../features/reports/pages/report_offender_choice_page.dart';
+import '../../features/reports/pages/report_select_person_page.dart';
+import '../../features/reports/pages/report_start_page.dart';
+import '../../features/reports/pages/report_success_page.dart';
+import '../../features/reports/pages/report_type_page.dart';
+import '../../features/reports/models/report_draft.dart';
+import '../../features/routine/pages/routine_page.dart';
+import '../../features/routine/pages/pending_routine_tasks_page.dart';
+import '../../features/settings/pages/settings_page.dart';
+import '../../features/support/pages/support_home_page.dart';
+import '../../features/tutorial/pages/tutorial_done_page.dart';
+import '../../features/tutorial/pages/tutorial_offer_page.dart';
+import '../../features/tutorial/pages/tutorial_setup_page.dart';
+import '../../shared/widgets/main_navigation_shell.dart';
+import 'route_names.dart';
+
 class AppRouter {
   AppRouter._();
 
-  static final GoRouter router = GoRouter(
-    initialLocation: '/splash',
-    debugLogDiagnostics: true, // Logs de navegação (remover em produção)
-
+  static final router = GoRouter(
+    initialLocation: RouteNames.splash,
     routes: [
-      // Splash (tela inicial)
       GoRoute(
-        path: '/splash',
-        name: 'splash',
-        pageBuilder: (context, state) => _buildPageWithTransition(
-          context: context,
-          state: state,
-          child: const SplashPage(),
-        ),
+        path: RouteNames.splash,
+        builder: (context, state) => const SplashPage(),
       ),
-
-      // Onboarding
       GoRoute(
-        path: '/onboarding',
-        name: 'onboarding',
-        pageBuilder: (context, state) => _buildPageWithTransition(
-          context: context,
-          state: state,
-          child: const OnboardingPage(),
-        ),
-      ),
+        path: RouteNames.onboarding,
+        pageBuilder: (context, state) {
+          final arguments =
+              state.extra as OnboardingArguments? ??
+              const OnboardingArguments();
 
-      // Seleção de tipo de usuário
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: OnboardingPage(arguments: arguments),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
+          );
+        },
+      ),
       GoRoute(
-        path: '/user-type-selection',
-        name: 'user-type-selection',
-        pageBuilder: (context, state) => _buildPageWithTransition(
-          context: context,
-          state: state,
-          child: const UserTypeSelectionPage(),
-        ),
+        path: RouteNames.register,
+        redirect: (context, state) {
+          final arguments = state.extra;
+          return arguments is AuthArguments &&
+                  arguments.accountType != AccountType.support
+              ? null
+              : RouteNames.onboarding;
+        },
+        builder: (context, state) {
+          return RegisterPage(arguments: state.extra as AuthArguments);
+        },
       ),
+      GoRoute(
+        path: RouteNames.login,
+        redirect: (context, state) {
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
+        },
+        builder: (context, state) {
+          return LoginPage(arguments: state.extra as AuthArguments);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.verifyEmail,
+        builder: (context, state) => const VerifyEmailPage(),
+      ),
+      GoRoute(
+        path: RouteNames.supportHome,
+        builder: (context, state) => const SupportHomePage(),
+      ),
+      GoRoute(
+        path: RouteNames.forgotPassword,
+        redirect: (context, state) {
+          final arguments = state.extra;
+          return arguments is AuthArguments &&
+                  arguments.accountType != AccountType.support
+              ? null
+              : RouteNames.onboarding;
+        },
+        builder: (context, state) {
+          return ForgotPasswordPage(arguments: state.extra as AuthArguments);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.elderPasswordReset,
+        builder: (context, state) {
+          return ElderPasswordResetPage(
+            request: state.extra as ElderPasswordResetRequest,
+          );
+        },
+      ),
+      GoRoute(
+        path: RouteNames.passwordResetApproval,
+        builder: (context, state) {
+          return PasswordResetApprovalPage(
+            requestId: state.pathParameters['requestId']!,
+          );
+        },
+      ),
+      GoRoute(
+        path: RouteNames.elderLogin,
+        redirect: (context, state) {
+          return state.extra is AuthArguments ? null : RouteNames.onboarding;
+        },
+        builder: (context, state) {
+          return ElderLoginPage(arguments: state.extra as AuthArguments);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.tutorialOffer,
+        builder: (context, state) => const TutorialOfferPage(),
+      ),
+      GoRoute(
+        path: RouteNames.tutorialSetup,
+        builder: (context, state) => const TutorialSetupPage(),
+      ),
+      GoRoute(
+        path: RouteNames.tutorialDone,
+        builder: (context, state) => const TutorialDonePage(),
+      ),
+      ShellRoute(
+        builder: (context, state, child) {
+          return MainNavigationShell(location: state.uri.path, child: child);
+        },
+        routes: [
+          GoRoute(
+            path: RouteNames.familyLink,
+            builder: (context, state) => const FamilyLinkPage(),
+          ),
+          GoRoute(
+            path: RouteNames.elderHome,
+            builder: (context, state) => const ElderHomePage(),
+          ),
+          GoRoute(
+            path: RouteNames.caregiverHome,
+            builder: (context, state) {
+              final caregiverData = state.extra is Map<String, dynamic>
+                  ? state.extra! as Map<String, dynamic>
+                  : <String, dynamic>{};
 
-      // TODO: Adicionar rotas de login, cadastro, home, etc
+              return CaregiverHomePage(caregiverData: caregiverData);
+            },
+          ),
+          GoRoute(
+            path: RouteNames.familyHome,
+            builder: (context, state) {
+              final extra = state.extra;
+              final elderData = extra is Map<String, dynamic>
+                  ? extra
+                  : const <String, dynamic>{};
+              final elderId = elderData['id']?.toString();
+              final elderName =
+                  elderData['name']?.toString() ??
+                  (extra is String ? extra : 'Idoso');
+
+              return FamilyHomePage(elderId: elderId, elderName: elderName);
+            },
+          ),
+          GoRoute(
+            path: RouteNames.menu,
+            builder: (context, state) => const MenuPage(),
+          ),
+          GoRoute(
+            path: RouteNames.chat,
+            builder: (context, state) => const ChatPage(),
+          ),
+          GoRoute(
+            path: RouteNames.chatConversation,
+            builder: (context, state) {
+              return ConversationPage(
+                conversationId: state.pathParameters['conversationId']!,
+              );
+            },
+          ),
+          GoRoute(
+            path: RouteNames.pendingRoutine,
+            builder: (context, state) => const PendingRoutineTasksPage(),
+          ),
+          GoRoute(
+            path: RouteNames.routine,
+            builder: (context, state) => const RoutinePage(),
+          ),
+          GoRoute(
+            path: RouteNames.routineDetail,
+            builder: (context, state) => RoutinePage(
+              elderId: state.pathParameters['elderId'],
+            ),
+          ),
+          GoRoute(
+            path: RouteNames.profile,
+            builder: (context, state) => const ProfilePage(),
+          ),
+          GoRoute(
+            path: RouteNames.settings,
+            builder: (context, state) => const SettingsPage(),
+          ),
+          GoRoute(
+            path: RouteNames.auri,
+            builder: (context, state) => const AuriPage(),
+          ),
+          GoRoute(
+            path: RouteNames.reportStart,
+            builder: (context, state) => const ReportStartPage(),
+          ),
+          GoRoute(
+            path: RouteNames.reportType,
+            builder: (context, state) => const ReportTypePage(),
+          ),
+          GoRoute(
+            path: RouteNames.reportForm,
+            builder: (context, state) => ReportFormPage(
+              initialDraft: state.extra is ReportDraft
+                  ? state.extra! as ReportDraft
+                  : null,
+            ),
+          ),
+          GoRoute(
+            path: RouteNames.reportOffenderChoice,
+            builder: (context, state) =>
+                ReportOffenderChoicePage(
+                  draft: state.extra is ReportDraft
+                      ? state.extra! as ReportDraft
+                      : null,
+                ),
+          ),
+          GoRoute(
+            path: RouteNames.reportSelectPerson,
+            builder: (context, state) =>
+                ReportSelectPersonPage(
+                  draft: state.extra is ReportDraft
+                      ? state.extra! as ReportDraft
+                      : null,
+                ),
+          ),
+          GoRoute(
+            path: RouteNames.reportSuccess,
+            builder: (context, state) => const ReportSuccessPage(),
+          ),
+        ],
+      ),
     ],
-
-    // Tratamento de erro (rota não encontrada)
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(child: Text('Página não encontrada: ${state.uri}')),
-    ),
   );
-
-  /// Helper para criar transição customizada entre páginas
-  static CustomTransitionPage _buildPageWithTransition({
-    required BuildContext context,
-    required GoRouterState state,
-    required Widget child,
-  }) {
-    return CustomTransitionPage(
-      key: state.pageKey,
-      child: child,
-      transitionsBuilder: (context, animation, secondaryAnimation, child) {
-        // Fade in transition (suave)
-        return FadeTransition(opacity: animation, child: child);
-      },
-    );
-  }
 }
