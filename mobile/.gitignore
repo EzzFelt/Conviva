@@ -11,6 +11,10 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+build/
+.dart_tool/
+.pub-cache/
+
 
 # IntelliJ related
 *.iml
